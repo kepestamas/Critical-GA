@@ -5,6 +5,7 @@ import networkx as nx
 import random
 import copy
 import sys
+from multiprocessing import Pool, cpu_count
 
 
 from networkx.classes.function import neighbors
@@ -77,6 +78,11 @@ payoff_functions.fitness_count = 0
 fitness_count = 0
 mutation_count = int((k_nodes + k_edges)/4)
 
+# Parallelization settings
+N_PROCESSES = cpu_count() - 1 if cpu_count() > 1 else 1  # Leave one core free
+USE_PARALLEL = True
+PARALLEL_POOL = None  # Global pool to avoid recreation overhead
+
 # max_fitness_count = 20000
 
 # if sys.argv[1] in ["inf-USAir97.mtx", "inf-openflights.edges", "inf-euroroad.edges"]:
@@ -91,6 +97,57 @@ for i,node in enumerate(list(G.nodes)):
 edge_dictionary = {}
 for i,edge in enumerate(list(G.edges)):
     edge_dictionary[i] = edge
+
+def serialize_graph_data(graph):
+    """Extract picklable data from graph."""
+    return (list(graph.edges()), list(graph.nodes()))
+
+def evaluate_individual_worker(args):
+    """Worker function for parallel fitness evaluation."""
+    individual, graph_edges, graph_nodes, payoff_func_name = args
+    
+    # Reconstruct graph once (avoid deepcopy)
+    G_worker = nx.Graph()
+    G_worker.add_nodes_from(graph_nodes)
+    G_worker.add_edges_from(graph_edges)
+    
+    # Remove nodes and edges directly (no deepcopy needed)
+    G_worker.remove_nodes_from(individual[0])
+    G_worker.remove_edges_from(individual[1])
+    
+    # Get payoff function and calculate
+    payoff_func = get_payoff_function(payoff_func_name)
+    result = payoff_func(nx.connected_components(G_worker))
+    
+    return (individual, result)
+
+def parallel_fitness_batch(individuals, graph_data, payoff_func_name):
+    """Evaluate multiple individuals in parallel."""
+    global PARALLEL_POOL
+    
+    if not USE_PARALLEL or len(individuals) < 10:
+        # Serial fallback for small batches
+        results = []
+        for ind in individuals:
+            results.append((ind, fitness(ind)))
+        return results
+    
+    # Create pool once if not exists
+    if PARALLEL_POOL is None:
+        PARALLEL_POOL = Pool(processes=N_PROCESSES)
+    
+    # Prepare arguments
+    graph_edges, graph_nodes = graph_data
+    args = [(ind, graph_edges, graph_nodes, payoff_func_name) 
+            for ind in individuals]
+    
+    # Parallel evaluation using persistent pool
+    results = PARALLEL_POOL.map(evaluate_individual_worker, args)
+    
+    # Update fitness counter (approximate)
+    payoff_functions.fitness_count += len(individuals)
+    
+    return results
 
 def generate_pop():
     population = []
@@ -261,14 +318,23 @@ def tournament_round(evaluated_population):
     second_child = (second_child_nodes, second_child_edges)
     return first_child, second_child
 
-def crossover_tournament(evaluated_population):
+def crossover_tournament(evaluated_population, graph_data=None, payoff_func_name=None):
     print("Tournament")
-    evaluated_child_population = []
+    
+    # Generate all children first
+    children = []
     for _ in range(tournament_round_count):
         first_child, second_child = tournament_round(evaluated_population)
-        evaluated_child_population.append((copy.deepcopy(first_child), fitness(first_child)))
-        evaluated_child_population.append((copy.deepcopy(second_child), fitness(second_child)))
-
+        children.extend([copy.deepcopy(first_child), copy.deepcopy(second_child)])
+    
+    # Parallel evaluation
+    if USE_PARALLEL and graph_data is not None:
+        evaluated_child_population = parallel_fitness_batch(
+            children, graph_data, payoff_func_name
+        )
+    else:
+        evaluated_child_population = [(child, fitness(child)) for child in children]
+    
     return evaluated_child_population
 
 def average_connectivity(evaluated_population):
@@ -277,10 +343,30 @@ def average_connectivity(evaluated_population):
         summa = summa + individual[1]
     return summa / len(evaluated_population)
 
+def cleanup_parallel_pool():
+    """Close the parallel pool to free resources."""
+    global PARALLEL_POOL
+    if PARALLEL_POOL is not None:
+        PARALLEL_POOL.close()
+        PARALLEL_POOL.join()
+        PARALLEL_POOL = None
+
 def ga():
     print("Starting GA")
     population = generate_pop()
-    evaluated_population = [(individual, fitness(individual)) for individual in population]
+    
+    # Serialize graph data once for parallel evaluation
+    graph_data = serialize_graph_data(G)
+    
+    # Parallel evaluation of initial population
+    if USE_PARALLEL:
+        evaluated_population = parallel_fitness_batch(
+            population, graph_data, payoff_function_name
+        )
+    else:
+        evaluated_population = [(individual, fitness(individual)) 
+                                for individual in population]
+    
     print(population)
     f = open(output, "w+")
     for current_gen in range(gen_count):
@@ -289,7 +375,9 @@ def ga():
         # for pop in evaluated_population:
         #     if len(set(pop[0][0])) != 25:
         #         print("ERROR")
-        evaluated_child_population = crossover_tournament(evaluated_population)
+        evaluated_child_population = crossover_tournament(
+            evaluated_population, graph_data, payoff_function_name
+        )
 
         # print("Before mutation")
         # for pop in evaluated_population:
@@ -322,10 +410,14 @@ def ga():
 
         # if fitness_count > max_fitness_count:
         #     break
+    
+    # Cleanup parallel resources
+    cleanup_parallel_pool()
 
 
-print(list(G.nodes))
-ga()
+if __name__ == '__main__':
+    print(list(G.nodes))
+    ga()
 
 
 
