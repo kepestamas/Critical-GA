@@ -25,6 +25,8 @@ from networkx import Graph as gr
 import itertools
 
 import numpy as np
+import payoff_functions
+from payoff_functions import get_payoff_function, list_payoff_functions
 
 ## -> MultiProcessing
 from multiprocessing import *
@@ -128,12 +130,19 @@ def pool_init(q):
     global que # make queue global in workers
     que = q
 
-#PAIRWISE CONNECTIVITY - using component count
-def f_pairwise(lst): ### A komponensek szamossagabol a "pairwise-connectivity"
-    global fitness_count
+# Global payoff function (will be set during initialization)
+payoff_function = None
+
+#FITNESS FUNCTION - cover function that uses the selected payoff function
+def fitness(lst): ### Cover function that applies the selected payoff function to components
+    global fitness_count, payoff_function
     fitness_count = fitness_count + 1
-    summa = sum([len(c)*(len(c)-1)/2 if (len(c)>1) else 0 for c in lst])
-    return summa
+    # Use the global payoff function if set, otherwise default to pairwise connectivity from module
+    if payoff_function is not None:
+        return payoff_function(lst)
+    else:
+        # Use the pairwise_connectivity function from payoff_functions module
+        return payoff_functions.pairwise_connectivity(lst)
 
 def h_component(lst): 
     return sum(lst)
@@ -150,7 +159,7 @@ def best_nodes_edges_CNEP1A_Alg2(config,SN,SE, GG):
     P = GG.copy()
     P.remove_nodes_from(SN)
     P.remove_edges_from(SE)
-    node_f_orig = f_pairwise(nx.connected_components(P))
+    node_f_orig = fitness(nx.connected_components(P))
     SG2 = nx.edges(config.G)
     SG1 = nx.nodes(config.G)
     if (config.iDebug == 2):
@@ -161,7 +170,7 @@ def best_nodes_edges_CNEP1A_Alg2(config,SN,SE, GG):
         for curr_node in SG1:
             R = P.copy()
             R.remove_nodes_from([curr_node])
-            node_f = node_f_orig - f_pairwise(nx.connected_components(R))
+            node_f = node_f_orig - fitness(nx.connected_components(R))
             # if (config.iDebug == 2):
                 # print("      node_f = ", node_f," (S: ",set(S)-set([curr_node]),")")
 
@@ -176,7 +185,7 @@ def best_nodes_edges_CNEP1A_Alg2(config,SN,SE, GG):
          for curr_edge in SG2:
             R = P.copy()
             R.remove_edges_from([curr_edge])
-            node_f = node_f_orig - f_pairwise(nx.connected_components(R))
+            node_f = node_f_orig - fitness(nx.connected_components(R))
             # if (config.iDebug == 2):
             #     print("      node_f = ", node_f," (S: ",set(S)-set([curr_node]),")")
 
@@ -245,7 +254,7 @@ def makeCNEPRun(config,method,i):
     [R, SS, EE] = method(config)
     if (config.iDebug == 2):
         print(SS)
-    currVal = f_pairwise(nx.connected_components(R))
+    currVal = fitness(nx.connected_components(R))
     if (config.iDebug == 2):
         print(currVal)
     que.put([currVal,SS,EE])
@@ -291,6 +300,27 @@ if __name__ == '__main__':
      
     mainConfig = config(ifile, iterCount, iK1, iK2, iDebug)
     print_config(mainConfig)
+    
+    # Parse payoff function parameter (optional, default: 'pairwise')
+    # Check if payoff function is specified as last argument
+    if len(sys.argv) >= 4:
+        payoff_function_name = sys.argv[-1]
+        try:
+            payoff_function = get_payoff_function(payoff_function_name)
+            print(f"Using payoff function: {payoff_function_name}")
+            # Synchronize fitness count with payoff functions module
+            payoff_functions.fitness_count = 0
+        except ValueError:
+            # If the last argument is not a valid payoff function, use default
+            payoff_function_name = 'pairwise'
+            payoff_function = get_payoff_function(payoff_function_name)
+            print(f"Using default payoff function: {payoff_function_name}")
+            payoff_functions.fitness_count = 0
+    else:
+        payoff_function_name = 'pairwise'
+        payoff_function = get_payoff_function(payoff_function_name)
+        print(f"Using default payoff function: {payoff_function_name}")
+        payoff_functions.fitness_count = 0
     
     
     minVal = math.inf

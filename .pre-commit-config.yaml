@@ -1,0 +1,71 @@
+# Pre-commit configuration for Critical-GA project
+# Install with: pip install pre-commit && pre-commit install
+
+repos:
+  # General code formatting and linting
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: debug-statements
+
+  # Python code formatting
+  - repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+      - id: black
+        language_version: python3
+        args: [--line-length=88]
+
+  # Python import sorting
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=88]
+
+  # Python linting
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
+        args: [--max-line-length=88, --extend-ignore=E203,W503]
+
+  # Documentation checks
+  - repo: local
+    hooks:
+      - id: check-doc-sync
+        name: Check documentation sync
+        entry: python .github/scripts/check_doc_sync.py
+        language: python
+        files: '\.py$'
+        pass_filenames: false
+        
+      - id: validate-readme
+        name: Validate README examples
+        entry: python .github/scripts/validate_readme_examples.py
+        language: python
+        files: 'README\.md$'
+        pass_filenames: false
+        
+      - id: check-internal-links
+        name: Check internal links
+        entry: python .github/scripts/check_internal_links.py
+        language: python
+        files: '\.md$'
+        pass_filenames: false
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.35.0
+    hooks:
+      - id: markdownlint
+        args: [--ignore, node_modules]
+        files: '\.md$'

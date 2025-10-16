@@ -8,7 +8,9 @@ import sys
 
 
 from networkx.classes.function import neighbors
-from numpy import infty
+import numpy as np
+import payoff_functions
+from payoff_functions import get_payoff_function, list_payoff_functions
 
 
 def read_graph(input, input_type):
@@ -53,6 +55,25 @@ tournament_size = int(sys.argv[6]) # number of parents considered in crossover t
 p_cross = float(sys.argv[7])
 tournament_round_count = int(pop_size * p_cross * 0.5) # number of rounds in tournament
 mutation_chance = float(sys.argv[8])
+
+# Parse payoff function parameter (optional, default: 'pairwise')
+if len(sys.argv) > 9:
+    payoff_function_name = sys.argv[9]
+else:
+    payoff_function_name = 'pairwise'
+
+# Validate and get payoff function
+try:
+    payoff_function = get_payoff_function(payoff_function_name)
+    print(f"Using payoff function: {payoff_function_name}")
+except ValueError as e:
+    print(f"Error: {e}")
+    print(f"Usage: python {sys.argv[0]} <input> <run_id> <node_frac> <edge_frac> <pop_size> <tournament_size> <p_cross> <p_mut> [payoff_function]")
+    print(f"Available payoff functions: {', '.join(list_payoff_functions())}")
+    sys.exit(1)
+
+# Synchronize fitness count with payoff functions module
+payoff_functions.fitness_count = 0
 fitness_count = 0
 mutation_count = int((k_nodes + k_edges)/4)
 
@@ -61,7 +82,7 @@ mutation_count = int((k_nodes + k_edges)/4)
 # if sys.argv[1] in ["inf-USAir97.mtx", "inf-openflights.edges", "inf-euroroad.edges"]:
 #     max_fitness_count = 10000000
 
-output = "outputs/descending_mutation/ga/timing" + str(sys.argv[2]) + "_" + sys.argv[1] + "_ke_" + str(k_edges) + "_kn_" + str(k_nodes)
+output = "outputs/descending_mutation/ga/timing" + str(sys.argv[2]) + "_" + sys.argv[1] + "_ke_" + str(k_edges) + "_kn_" + str(k_nodes) + "_" + payoff_function_name
 
 node_dictionary = {}
 for i,node in enumerate(list(G.nodes)):
@@ -88,17 +109,20 @@ def generate_one_pair():
     return (nodes, edges)
 
 
-def pairwise(lst):
-    global fitness_count
-    fitness_count = fitness_count + 1
-    summa = sum([len(c)*(len(c)-1)/2 if (len(c)>1) else 0 for c in lst])
-    return summa
-
 def fitness(individual):
+    """
+    Evaluate fitness of an individual using the selected payoff function.
+    
+    Args:
+        individual: Tuple of (nodes_to_remove, edges_to_remove)
+        
+    Returns:
+        float: Fitness score (lower is better for all payoff functions)
+    """
     P : nx.Graph = copy.deepcopy(G)
     P.remove_nodes_from(individual[0])
     P.remove_edges_from(individual[1])
-    result = pairwise(nx.connected_components(P))
+    result = payoff_function(nx.connected_components(P))
     return result
 
 def get_second(tuple):
@@ -292,7 +316,7 @@ def ga():
         #     if len(set(pop[0][0])) != 25:
         #         print("ERROR")
         
-        print(str(current_gen) + " " + str(fitness_count))
+        print(str(current_gen) + " " + str(payoff_functions.get_fitness_count()))
         print(str(current_gen) + " " + str(average_connectivity(evaluated_population)))
         print(str(current_gen) + " " + str(evaluated_population[0][1]) + " " + str(evaluated_population[0][0]), file=f)
 

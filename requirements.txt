@@ -1,0 +1,46 @@
+# Requirements and Dependencies
+
+## Core Dependencies
+
+networkx>=2.0
+numpy>=1.15.0
+
+## Optional Dependencies
+
+# Visualization
+matplotlib>=3.0.0
+pyvis>=0.1.8
+
+## Development Dependencies (Optional)
+
+# Testing
+pytest>=6.0.0
+pytest-cov>=2.10.0
+
+# Code Quality
+black>=21.0.0
+flake8>=3.8.0
+isort>=5.0.0
+
+# Type Checking
+mypy>=0.800
+
+# Documentation
+sphinx>=3.0.0
+sphinx-rtd-theme>=0.5.0
+
+# Performance Profiling
+memory-profiler>=0.58.0
+line-profiler>=3.0.0
+
+## Platform-Specific Notes
+
+# Windows users may need:
+# pywin32>=227  # For multiprocessing
+
+# macOS users with Apple Silicon may need specific versions:
+# numpy compiled for arm64
+
+# Linux users may need development headers:
+# python3-dev (Ubuntu/Debian)
+# python3-devel (CentOS/RHEL)

@@ -1,0 +1,103 @@
+MIT License
+
+Copyright (c) 2025 Tamás Kálmán
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+
+## Third-Party Libraries
+
+This project uses the following third-party libraries:
+
+### NetworkX
+Copyright (c) 2004-2023, NetworkX Developers
+License: BSD 3-Clause License
+URL: https://networkx.org/
+
+### NumPy
+Copyright (c) 2005-2023, NumPy Developers
+License: BSD 3-Clause License  
+URL: https://numpy.org/
+
+### Matplotlib
+Copyright (c) 2002-2012 John D. Hunter; All Rights Reserved
+License: PSF License (Python Software Foundation License)
+URL: https://matplotlib.org/
+
+### PyVis
+Copyright (c) 2017-2023, PyVis Contributors
+License: BSD 3-Clause License
+URL: https://pyvis.readthedocs.io/
+
+================================================================================
+
+## Dataset Attributions
+
+The datasets included in this project are from various sources and may have
+their own licensing terms. Please refer to the individual dataset documentation
+and original sources for specific attribution requirements.
+
+### Social Networks
+- Zachary's Karate Club: W. W. Zachary (1977). An information flow model for conflict and fission in small groups. Journal of Anthropological Research 33, 452-473.
+- Dolphin Social Network: D. Lusseau et al. (2003). The bottlenose dolphin community of Doubtful Sound features a large proportion of long-lasting associations.
+- College Football: M. Girvan and M. E. J. Newman (2002). Community structure in social and biological networks.
+
+### Infrastructure Networks
+Various infrastructure networks are sourced from publicly available datasets
+and research repositories. Original sources are cited in the dataset documentation.
+
+### Biological Networks
+Biological network data is sourced from public research databases and
+publications. Proper attribution is maintained in the dataset documentation.
+
+### Synthetic Networks
+Synthetic networks are generated using standard algorithms implemented in
+NetworkX and do not require additional attribution beyond the library citation.
+
+================================================================================
+
+## Academic Use
+
+If you use this software in academic research, please cite:
+
+```bibtex
+@software{critical_ga_2025,
+  title={Critical Network Disruption Problem - Genetic Algorithm Implementation},
+  author={Tamás Kálmán},
+  year={2025},
+  url={https://github.com/kepestamas/Critical-GA},
+  note={GitHub repository}
+}
+```
+
+For specific datasets, please also cite the original data sources as documented
+in the dataset attribution section above and in docs/DATASETS.md.
+
+================================================================================
+
+## Disclaimer
+
+This software is provided for educational and research purposes. The authors
+make no claims about the suitability of this software for any particular purpose
+and disclaim any liability for damages resulting from its use.
+
+The network disruption algorithms implemented in this software are intended for
+academic research and educational purposes only. Users are responsible for
+ensuring their use complies with applicable laws and ethical guidelines.

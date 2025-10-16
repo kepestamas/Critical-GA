@@ -1,0 +1,124 @@
+# GitHub Copilot Chat Configuration
+# This file helps Copilot Chat understand the project context better
+
+name: "Critical Network Disruption Problem (CNDP)"
+description: "Research implementation of genetic algorithms and greedy algorithms for network disruption optimization"
+
+# Project structure understanding
+structure:
+  core_algorithms:
+    - connectivity_ga.py: "Main genetic algorithm implementation with tournament selection, union crossover, and descending mutation"
+    - connectivity_greedy.py: "Greedy algorithm with multiprocessing support for iterative best-choice selection"
+  
+  analysis_tools:
+    - network_analyzer.py: "Comprehensive network statistics including spectral properties and centrality measures"
+    - network_painter.py: "Interactive network visualization using PyVis for HTML output"
+    - connectivity_runner.py: "Batch processing system for running multiple experiments with timing"
+  
+  documentation:
+    - README.md: "Main project documentation with usage examples and algorithm descriptions"
+    - docs/: "Detailed technical documentation including API, algorithms, datasets, and installation guides"
+    - CONTRIBUTING.md: "Guidelines for code contributions and development practices"
+
+# Key concepts to understand
+concepts:
+  problem_domain:
+    - "Critical Network Disruption Problem (CNDP): NP-hard optimization problem"
+    - "Objective: Minimize pairwise connectivity by removing limited nodes and edges"
+    - "Applications: Network robustness, security assessment, infrastructure protection"
+  
+  algorithms:
+    - "Genetic Algorithm: Population-based metaheuristic with evolutionary operators"
+    - "Greedy Algorithm: Constructive heuristic with immediate best-choice selection"
+    - "Fitness Function: Pairwise connectivity = Σ|C|×(|C|-1)/2 for components C"
+  
+  technical_stack:
+    - "NetworkX: Graph algorithms and data structures"
+    - "NumPy: Numerical computations and linear algebra"
+    - "Python 3.6+: Core implementation language"
+    - "PyVis: Interactive network visualization"
+
+# Coding patterns specific to this project
+patterns:
+  genetic_algorithm:
+    - "Individual representation: (nodes_to_remove, edges_to_remove)"
+    - "Tournament selection with configurable tournament size"
+    - "Union-based crossover preserving feasibility constraints"
+    - "Descending mutation with adaptive intensity"
+    - "Elitist selection maintaining population size"
+  
+  network_operations:
+    - "Use NetworkX connected_components for fitness evaluation"
+    - "Efficient graph copying and modification operations"
+    - "Support for multiple file formats with format detection"
+    - "Consistent node and edge handling across modules"
+  
+  research_code:
+    - "Parameter configurability for experimental studies"
+    - "Reproducible random seed handling"
+    - "Comprehensive logging and result output"
+    - "Performance timing and fitness evaluation counting"
+
+# Common tasks and their approaches
+tasks:
+  adding_new_algorithm:
+    - "Create new module following existing patterns"
+    - "Implement standard interface (input graph, budget constraints)"
+    - "Add to connectivity_runner.py for batch processing"
+    - "Update documentation with algorithm description"
+  
+  performance_optimization:
+    - "Profile fitness evaluation bottlenecks first"
+    - "Consider caching for expensive computations"
+    - "Use NetworkX built-in functions when possible"
+    - "Implement parallel processing carefully"
+  
+  documentation_updates:
+    - "Update API.md for function signature changes"
+    - "Update ALGORITHMS.md for implementation modifications"
+    - "Update README.md for usage pattern changes"
+    - "Update DATASETS.md for new network additions"
+
+# Quality standards
+standards:
+  code_quality:
+    - "Follow PEP 8 with Black formatting (88 character lines)"
+    - "Add comprehensive docstrings with examples"
+    - "Include type hints for public functions"
+    - "Handle errors gracefully with informative messages"
+  
+  research_standards:
+    - "Document algorithmic assumptions and parameters"
+    - "Maintain reproducibility through seed management"
+    - "Include complexity analysis for new algorithms"
+    - "Provide proper citations for algorithm sources"
+  
+  documentation:
+    - "Keep examples current with actual code behavior"
+    - "Include mathematical formulations where relevant"
+    - "Provide both theoretical and practical guidance"
+    - "Maintain consistency across all documentation files"
+
+# File-specific context
+file_context:
+  connectivity_ga.py:
+    purpose: "Main genetic algorithm with advanced features like descending mutation"
+    key_functions: ["generate_pop", "fitness", "tournament_round", "crossover_tournament", "descending_mutation"]
+    global_vars: ["G", "k_nodes", "k_edges", "pop_size", "fitness_count"]
+    
+  connectivity_greedy.py:
+    purpose: "Greedy algorithm with multiprocessing for multiple independent runs"
+    key_classes: ["config"]
+    key_functions: ["CNEP1a_2_G1", "best_nodes_edges_CNEP1A_Alg2", "makeCNEPRun"]
+    
+  network_analyzer.py:
+    purpose: "Comprehensive network analysis with spectral properties"
+    outputs: "Statistical analysis written to outputs/reruns/networks/"
+    key_metrics: ["connectivity", "centrality", "clustering", "spectral_properties"]
+
+# Testing approach
+testing:
+  unit_tests: "Focus on individual functions like fitness calculation and selection"
+  integration_tests: "Test complete algorithm workflows end-to-end"
+  performance_tests: "Validate scalability with networks of increasing size"
+  regression_tests: "Ensure changes don't break existing functionality"
