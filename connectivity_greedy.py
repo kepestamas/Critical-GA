@@ -27,6 +27,7 @@ import itertools
 import numpy as np
 import payoff_functions
 from payoff_functions import get_payoff_function, list_payoff_functions
+from graph_io import read_graph, get_node_weight, get_total_weight, print_graph_summary
 
 ## -> MultiProcessing
 from multiprocessing import *
@@ -34,6 +35,11 @@ from multiprocessing import *
 
 fitness_count = 0
 max_fitness_count = 100000
+
+# Global dictionary to store node weights (for weighted graphs)
+node_weights = {}
+
+# Note: get_node_weight and get_total_weight are now imported from graph_io
 
 #USAGE INFORMATION
 def print_usage():
@@ -48,41 +54,20 @@ def print_usage():
 #CONFIGURATION CLASS
 class config:
 
-
-    def read_graph(self, input, input_type):
-        G = nx.Graph()
-        f = open(input, "r")
-        if sys.argv[1] in ["BarabasiAlbert_n500m1.txt","BarabasiAlbert_n1000m1.txt","ErdosRenyi_n250.txt","ErdosRenyi_n500.txt","ForestFire_n250.txt","ForestFire_n500.txt"]:
-            lines = f.readlines()
-            lines = lines[1:]
-            split_lines = [line.replace("\n","").split(":") for line in lines]
-            for line in split_lines:
-                a = line[0]
-                neighbors = line[1].split(" ")[1:-1]
-                for neighbor in neighbors:
-                    G.add_edge(a,neighbor)
-        elif sys.argv[1] in ["hamster.txt", "football.txt", "dolphins.txt", "karate.txt", "zebra.txt"]:
-            lines = f.readlines()
-            for line in lines:
-                split_line = line.replace("\n","").replace("\t"," ").split(" ")
-                G.add_edge(split_line[0],split_line[1])
-        elif sys.argv[1] in ["humanDiseasome.txt", "Ecoli.txt", "Circuit.txt", "Bovine.txt"]:
-            lines = f.readlines()
-            split_lines = [line.replace("\n","").split(" ") for line in lines]
-            for line in split_lines:
-                a = line[0]
-                neighbors = line[1]
-                for neighbor in neighbors:
-                    G.add_edge(a,neighbor)
-        return G
-
     def __init__(self, input_file, iterCount, iK1, iK2, iDebug=2):
+        global node_weights
+        
         self.inputFile = input_file
 
         input = "inputs/" + sys.argv[1]
         output = "outputs/reruns/greedy/" + str(sys.argv[2]) + "_" + sys.argv[1]
 
-        self.G = self.read_graph(input, "split_list")
+        # Use graph_io module to read graph
+        self.G, node_weights_loaded = read_graph(input, detect_weights=True)
+        node_weights = node_weights_loaded  # Always a dict now, with weight 1 for unweighted graphs
+        
+        # Print weight info for debugging
+        print_graph_summary(self.G, node_weights)
 
         # self.G = nx.read_adjlist(self.inputFile, nodetype = int)
 
@@ -93,10 +78,14 @@ class config:
         # INIT VALUES
         # self.K1 = iK1 if (iK1>0) else 2 # vertices to delete
         # self.K2 = iK2 if (iK2>0) else 2 # edges to delete
-        self.K1 = int(len(list(self.G.nodes)) * 0.05) # number of nodes to remove
-        self.K2 = int(len(list(self.G.edges)) * 0.03) # number of edges to remove
+        
+        # Calculate weight-based budget for nodes
+        total_node_weight = get_total_weight(node_weights, self.G.nodes())
+        self.K1_weight = int(total_node_weight * 0.05)  # target weight of nodes to remove (5%)
+        self.K2 = int(len(list(self.G.edges)) * 0.03)  # number of edges to remove (3%)
 
-        self.K = self.K1 + self.K2
+        self.K = self.K1_weight + self.K2  # Total budget (weight for nodes + count for edges)
+        self.current_node_weight = 0  # Track cumulative weight of removed nodes
         self.INF = self.G.number_of_nodes() ** 2
         # if iterCount == 0 :
         #     self.IterationCount = self.G.number_of_nodes() ** 2
@@ -120,8 +109,8 @@ def print_config(mainConfig):
     print("G - edgecount: " + str(len(mainConfig.G.edges)))
     print("G - nodecount: " + str(len(mainConfig.G.nodes)),'\n')
 
-    print('Vertices to delete: ', mainConfig.K1)
-    print('   Edges to delete: ', mainConfig.K1)
+    print('Node weight to remove: ', mainConfig.K1_weight)
+    print('   Edges to delete: ', mainConfig.K2)
     print('        Iterations:',mainConfig.IterationCount,'\n')
     print('         Processes:',mainConfig.pool_size,'\n')
 
@@ -152,7 +141,11 @@ def select_random(lst):
     return random.choice(lst)
 
 #GENERATE LIST OF BEST VERTICES AND EDGES
-def best_nodes_edges_CNEP1A_Alg2(config,SN,SE, GG): 
+def best_nodes_edges_CNEP1A_Alg2(config, SN, SE, GG, current_node_weight): 
+    """
+    Find best nodes and edges to remove.
+    For nodes: track cumulative weight instead of count.
+    """
     selectedEdges = []
     selectedNodes = []
     min_pw = config.INF
@@ -164,33 +157,35 @@ def best_nodes_edges_CNEP1A_Alg2(config,SN,SE, GG):
     SG1 = nx.nodes(config.G)
     if (config.iDebug == 2):
         print("--------------------------------------------\nKezdes")
-        # print("-> S: ", S)
         print("   node_f_orig = ", node_f_orig)
-    if len(SN) < config.K1:
+        print(f"   current_node_weight = {current_node_weight}/{config.K1_weight}")
+    
+    # Check node budget: based on weight
+    if current_node_weight < config.K1_weight:
         for curr_node in SG1:
-            R = P.copy()
-            R.remove_nodes_from([curr_node])
-            node_f = node_f_orig - fitness(nx.connected_components(R))
-            # if (config.iDebug == 2):
-                # print("      node_f = ", node_f," (S: ",set(S)-set([curr_node]),")")
+            if curr_node not in SN:  # Skip already removed nodes
+                node_weight = get_node_weight(node_weights, curr_node)
+                # Only consider nodes that won't exceed budget (with some tolerance)
+                if current_node_weight + node_weight <= config.K1_weight * 1.1:  # 10% tolerance
+                    R = P.copy()
+                    R.remove_nodes_from([curr_node])
+                    node_f = node_f_orig - fitness(nx.connected_components(R))
 
-            if node_f < min_pw:
-                selectedNodes.clear
-                selectedNodes.append(curr_node)
-                min_pw = node_f
-            elif node_f == min_pw:
-                selectedNodes.append(curr_node)
+                    if node_f < min_pw:
+                        selectedNodes.clear()
+                        selectedNodes.append(curr_node)
+                        min_pw = node_f
+                    elif node_f == min_pw:
+                        selectedNodes.append(curr_node)
 
     if len(SE) < config.K2:
          for curr_edge in SG2:
             R = P.copy()
             R.remove_edges_from([curr_edge])
             node_f = node_f_orig - fitness(nx.connected_components(R))
-            # if (config.iDebug == 2):
-            #     print("      node_f = ", node_f," (S: ",set(S)-set([curr_node]),")")
 
             if node_f < min_pw:
-                selectedEdges.clear
+                selectedEdges.clear()
                 selectedEdges.append(curr_edge)
                 min_pw = node_f
             elif node_f == min_pw:
@@ -198,54 +193,91 @@ def best_nodes_edges_CNEP1A_Alg2(config,SN,SE, GG):
     if (config.iDebug == 2):
         print("->N:",selectedNodes)   
         print("->E:",selectedEdges)   
-    return [selectedNodes,selectedEdges]
+    return [selectedNodes, selectedEdges]
 
 # CNP1a Alg2 G1
 def CNEP1a_2_G1(config):
-    S = []
-    E = []
+    S = []  # Removed nodes
+    E = []  # Removed edges
+    current_node_weight = 0  # Track cumulative weight of removed nodes
     
     H = config.G.copy()
     
-    while len(S)+len(E) < config.K: # and fitness_count < max_fitness_count:
-
-        [A,B] = best_nodes_edges_CNEP1A_Alg2(config,S,E, H)
+    # Continue while we haven't exceeded budgets
+    while current_node_weight < config.K1_weight or len(E) < config.K2:
+        [A, B] = best_nodes_edges_CNEP1A_Alg2(config, S, E, H, current_node_weight)
+        
         if (config.iDebug == 2):
-            print("B: ", B) ###
+            print("B: ", B)
+        
         z1 = z2 = config.NIL
-        if len(A)>0:
+        if len(A) > 0:
             z1 = select_random(A)
             if (config.iDebug == 2):
-                print("--> (randN)",z1) ###
-        if len(B)>0:
+                print("--> (randN)", z1, f"weight={get_node_weight(node_weights, z1)}")
+        if len(B) > 0:
             z2 = select_random(B)
             if (config.iDebug == 2):
-                print("--> (randE)",z2) ###
+                print("--> (randE)", z2)
 
-        if (z1!=config.NIL):
-            if (z2!=config.NIL):
-                if random.randint(0,1) == 1:
+        # Decide what to remove based on budget availability
+        if (z1 != config.NIL):
+            if (z2 != config.NIL):
+                # Both available: choose randomly or based on priority
+                node_weight = get_node_weight(node_weights, z1)
+                can_add_node = current_node_weight + node_weight <= config.K1_weight
+                can_add_edge = len(E) < config.K2
+                
+                if can_add_node and can_add_edge:
+                    if random.randint(0, 1) == 1:
+                        S.append(z1)
+                        current_node_weight += node_weight
+                        H.remove_nodes_from([z1])
+                        if (config.iDebug == 2):
+                            print(f"--> (del)N, total weight now: {current_node_weight}")
+                    else:
+                        E.append(z2)
+                        H.remove_edges_from([z2])
+                        if (config.iDebug == 2):
+                            print("--> (del)E")
+                elif can_add_node:
                     S.append(z1)
+                    current_node_weight += node_weight
                     H.remove_nodes_from([z1])
                     if (config.iDebug == 2):
-                        print("--> (del)N") ###
-                else:
+                        print(f"--> (del)N, total weight now: {current_node_weight}")
+                elif can_add_edge:
                     E.append(z2)
                     H.remove_edges_from([z2])
                     if (config.iDebug == 2):
-                        print("--> (del)E") ###
+                        print("--> (del)E")
+                else:
+                    break  # Both budgets exceeded
             else:
-                S.append(z1)
-                H.remove_nodes_from([z1])
-                if (config.iDebug == 2):
-                    print("--> (del)N") ###
+                # Only node available
+                node_weight = get_node_weight(node_weights, z1)
+                if current_node_weight + node_weight <= config.K1_weight:
+                    S.append(z1)
+                    current_node_weight += node_weight
+                    H.remove_nodes_from([z1])
+                    if (config.iDebug == 2):
+                        print(f"--> (del)N, total weight now: {current_node_weight}")
+                else:
+                    break  # Node budget exceeded
         else:
-            E.append(z2)
-            H.remove_edges_from([z2])
-            if (config.iDebug == 2):
-                print("--> (del)E") ###
+            # Only edge available
+            if len(E) < config.K2:
+                E.append(z2)
+                H.remove_edges_from([z2])
+                if (config.iDebug == 2):
+                    print("--> (del)E")
+            else:
+                break  # Edge budget exceeded
     
-    return [H,S,E]
+    if config.iDebug >= 1:
+        print(f"\nFinal: Removed {len(S)} nodes (weight: {current_node_weight}/{config.K1_weight}), {len(E)} edges")
+    
+    return [H, S, E]
     
 def makeCNEPRun(config,method,i):
     if (config.iDebug > 0):

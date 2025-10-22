@@ -12,6 +12,7 @@ The project contains implementations of both **Genetic Algorithm (GA)** and **Gr
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Documentation](#documentation)
 - [File Structure](#file-structure)
 - [Algorithms](#algorithms)
 - [Input Formats](#input-formats)
@@ -182,6 +183,36 @@ python network_painter.py <input_file>
 
 Creates interactive HTML visualizations of networks and their disrupted versions.
 
+## Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+### Core Documentation
+- **[ALGORITHMS.md](docs/ALGORITHMS.md)** - Detailed algorithm descriptions and pseudocode
+- **[API.md](docs/API.md)** - API reference and function documentation
+- **[DATASETS.md](docs/DATASETS.md)** - Available datasets and file formats
+- **[INSTALLATION.md](docs/INSTALLATION.md)** - Detailed installation instructions
+
+### Implementation Guides
+- **[PARALLELIZATION_IMPLEMENTED.md](docs/PARALLELIZATION_IMPLEMENTED.md)** - Multiprocessing implementation details
+- **[PERFORMANCE_OPTIMIZATION.md](docs/PERFORMANCE_OPTIMIZATION.md)** - Performance tuning and optimization guide
+- **[OPTIMIZATION_SUMMARY.md](docs/OPTIMIZATION_SUMMARY.md)** - Quick optimization reference
+
+### Planning Documents
+- **[PARALLELIZATION_CHECKLIST.md](docs/PARALLELIZATION_CHECKLIST.md)** - Parallelization implementation checklist
+- **[PARALLELIZATION_MINIMAL_PLAN.md](docs/PARALLELIZATION_MINIMAL_PLAN.md)** - Minimal parallelization plan
+- **[WEIGHTED_GRAPHS_INTEGRATION_PLAN.md](docs/WEIGHTED_GRAPHS_INTEGRATION_PLAN.md)** - Weighted graph support integration plan
+- **[WEIGHTED_GRAPHS_QUICK_GUIDE.md](docs/WEIGHTED_GRAPHS_QUICK_GUIDE.md)** - Quick guide for weighted graphs
+- **[WEIGHTED_GRAPHS_CHECKLIST.md](docs/WEIGHTED_GRAPHS_CHECKLIST.md)** - Weighted graphs implementation checklist
+- **[WEIGHTED_GRAPHS_IMPLEMENTATION_SUMMARY.md](docs/WEIGHTED_GRAPHS_IMPLEMENTATION_SUMMARY.md)** - ✅ Complete implementation summary
+- **[CODE_CONSOLIDATION_PLAN.md](docs/CODE_CONSOLIDATION_PLAN.md)** - 🔄 Code refactoring and deduplication plan
+
+### Project Information
+- **[PAYOFF_FUNCTIONS_PLAN.md](docs/PAYOFF_FUNCTIONS_PLAN.md)** - Payoff functions design and implementation
+- **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** - Contribution guidelines
+
+See also: **[CHANGELOG.md](CHANGELOG.md)** - Version history and changes (root directory)
+
 ## File Structure
 
 ```
@@ -190,12 +221,32 @@ Critical-GA/
 ├── connectivity_greedy.py      # Greedy Algorithm implementation  
 ├── connectivity_runner.py      # Batch execution script
 ├── payoff_functions.py         # Configurable fitness functions
+├── graph_io.py                 # 🆕 Centralized graph I/O module
 ├── network_analyzer.py         # Network property analysis
 ├── network_painter.py          # Network visualization
+├── benchmark_parallel.py       # Performance benchmarking script
+├── README.md                   # This documentation
+├── CHANGELOG.md                # Version history and changes
+├── LICENSE                     # Project license
+├── requirements.txt            # Python dependencies
+├── docs/                       # Documentation directory
+│   ├── ALGORITHMS.md          # Algorithm descriptions
+│   ├── API.md                 # API reference
+│   ├── DATASETS.md            # Dataset documentation
+│   ├── INSTALLATION.md        # Installation guide
+│   ├── CONTRIBUTING.md        # Contribution guidelines
+│   ├── PARALLELIZATION_*.md   # Parallelization documentation
+│   ├── PERFORMANCE_*.md       # Performance documentation
+│   ├── WEIGHTED_GRAPHS_*.md   # Weighted graphs documentation
+│   ├── CODE_CONSOLIDATION_PLAN.md  # 🆕 Code refactoring documentation
+│   └── PAYOFF_FUNCTIONS_PLAN.md
 ├── inputs/                     # Input network files
 │   ├── karate.txt             # Zachary's Karate Club
 │   ├── dolphins.txt           # Dolphin social network
 │   ├── football.txt           # College football network
+│   ├── cor_*.txt              # Correlation networks (weighted)
+│   ├── bog_*.txt              # Bogotá networks (weighted)
+│   ├── mac_*.txt              # MAC networks (weighted)
 │   ├── BarabasiAlbert_*.txt   # Scale-free networks
 │   ├── ErdosRenyi_*.txt       # Random networks
 │   ├── ForestFire_*.txt       # Forest fire model networks
@@ -205,8 +256,7 @@ Critical-GA/
 │   ├── inf-*.edges            # Infrastructure networks
 │   └── ...                    # Additional network datasets
 ├── outputs/                    # Generated output files
-├── .gitignore                 # Git ignore file
-└── README.md                  # This documentation
+└── __pycache__/               # Python cache files
 ```
 
 ## Algorithms
