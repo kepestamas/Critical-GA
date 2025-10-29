@@ -59,7 +59,7 @@ def main():
         'tournament_size': [3, 5],
         'p_crossover': [0.8, 0.9],
         'p_mutation': [0.01, 0.02],
-        'payoff_function': ['components']  # Fixed to components (not number_of_components)
+        'payoff_function': ['largest']  # Fixed to largest
     }
 
     generations = 200  # Fixed number of generations per run
