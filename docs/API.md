@@ -193,9 +193,9 @@ Dictionary mapping function names to implementations.
 
 ```python
 PAYOFF_FUNCTIONS = {
-    'pairwise_connectivity': pairwise_connectivity,
-    'number_of_components': number_of_components,
-    'largest_component_size': largest_component_size
+    'pairwise': pairwise_connectivity,
+    'components': number_of_components,
+    'largest': largest_component_size
 }
 ```
 
@@ -207,7 +207,7 @@ from payoff_functions import PAYOFF_FUNCTIONS
 
 # Set payoff function based on command line argument
 payoff_function = PAYOFF_FUNCTIONS.get(payoff_name, 
-                                     PAYOFF_FUNCTIONS['pairwise_connectivity'])
+                                     PAYOFF_FUNCTIONS['pairwise'])
 
 # Use in fitness evaluation
 def fitness(individual):
@@ -224,7 +224,7 @@ from payoff_functions import PAYOFF_FUNCTIONS
 
 # Set global payoff function
 payoff_function = PAYOFF_FUNCTIONS.get(payoff_name, 
-                                     PAYOFF_FUNCTIONS['pairwise_connectivity'])
+                                     PAYOFF_FUNCTIONS['pairwise'])
 
 def f_pairwise(components_list):
     return payoff_function(components_list)

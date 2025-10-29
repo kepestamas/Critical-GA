@@ -10,11 +10,23 @@ The Critical Network Disruption Problem is a combinatorial optimization problem 
 
 **Given:**
 - Undirected graph G = (V, E) where V is the vertex set and E is the edge set
-- Budget constraints: k₁ ≤ |V| (maximum nodes to remove), k₂ ≤ |E| (maximum edges to remove)
+- Node weights: w(v) for each v ∈ V (default w(v) = 1 for unweighted graphs)
+- Total node weight: W = Σ w(v) for all v ∈ V
+- Node constraints:
+  - k_nodes: Exact number of nodes to remove
+  - k_weight_budget: Maximum total weight of removed nodes
+- Edge constraint: k_edges (maximum edges to remove)
 
 **Decision Variables:**
-- S ⊆ V: Set of nodes to remove, |S| ≤ k₁
-- T ⊆ E: Set of edges to remove, |T| ≤ k₂
+- S ⊆ V: Set of nodes to remove, |S| = k_nodes and Σ w(s) ≤ k_weight_budget for s ∈ S
+- T ⊆ E: Set of edges to remove, |T| ≤ k_edges
+
+**Dual-Constraint Model:**
+Solutions must satisfy BOTH:
+1. **Count constraint**: Exactly k_nodes nodes must be removed
+2. **Weight constraint**: Total weight Σ w(s) for s ∈ S must not exceed k_weight_budget
+
+This is more restrictive than previous approaches where only one constraint was active.
 
 **Objective Functions:**
 Three different optimization objectives are available for the disrupted graph G' = (V\S, E\T):
@@ -38,8 +50,9 @@ Three different optimization objectives are available for the disrupted graph G'
 Where {C₁, C₂, ..., Cₙ} are the connected components of G'.
 
 **Constraints:**
-- |S| ≤ k₁
-- |T| ≤ k₂  
+- |S| = k_nodes (exact count)
+- Σ w(s) ≤ k_weight_budget for s ∈ S (weight budget)
+- |T| ≤ k_edges
 - S ⊆ V
 - T ⊆ E
 
@@ -49,8 +62,14 @@ The CNDP is NP-hard, as it generalizes several known NP-hard problems:
 - **Node Connectivity**: Finding minimum vertex cut
 - **Edge Connectivity**: Finding minimum edge cut
 - **Graph Partitioning**: Optimal graph bisection
+- **Knapsack Problem**: Selecting k_nodes items with total weight ≤ k_weight_budget
 
-The problem space grows exponentially: O(C(|V|,k₁) × C(|E|,k₂)) possible solutions.
+The dual-constraint model is particularly challenging as it combines:
+- Exact count requirement (must select exactly k_nodes nodes)
+- Knapsack-like weight constraint (total weight ≤ budget)
+- Connectivity optimization objective
+
+The problem space grows exponentially: O(C(|V|,k_nodes) × C(|E|,k_edges)) possible combinations, with additional weight constraint filtering.
 
 ## Genetic Algorithm Implementation
 
@@ -79,17 +98,32 @@ def generate_pop():
     return population
 
 def generate_one_pair():
+    """Generate a valid solution satisfying both count and weight constraints."""
     node_list = list(G.nodes)
-    nodes = random.sample(node_list, k_nodes)
-    edge_list = list(G.edges)
-    edges = random.sample(edge_list, k_edges)
+    
+    # Try random sampling up to 1000 times
+    for _ in range(1000):
+        nodes = random.sample(node_list, k_nodes)
+        total_weight = sum(get_node_weight(node_weights, n) for n in nodes)
+        
+        if total_weight <= k_weight_budget:
+            # Valid solution found
+            edges = random.sample(list(G.edges), k_edges)
+            return (nodes, edges)
+    
+    # Fallback: select k_nodes lightest nodes
+    sorted_nodes = sorted(node_list, key=lambda n: get_node_weight(node_weights, n))
+    nodes = sorted_nodes[:k_nodes]
+    edges = random.sample(list(G.edges), k_edges)
     return (nodes, edges)
 ```
 
 **Characteristics:**
-- Random sampling without replacement
-- Ensures feasible solutions (no duplicates)
-- Uniform distribution over search space
+- Ensures exact k_nodes count
+- Respects weight budget constraint
+- Uses random sampling with fallback to guarantee feasibility
+- Fallback strategy: selects k lightest nodes if random sampling fails
+- Uniform distribution over feasible search space
 
 ### Fitness Evaluation
 
@@ -161,63 +195,120 @@ def find_min_from_contenders(contenders):
 
 ### Crossover: Union-Based Crossover
 
-The crossover operator combines genetic material from two parents:
+The crossover operator combines genetic material from two parents while respecting both count and weight constraints:
 
 ```python
 def split_node_lists(united_node_list):
+    """Distribute nodes to two children respecting k_nodes count and weight budget."""
     first_child_nodes = []
     second_child_nodes = []
+    first_weight = 0
+    second_weight = 0
     random.shuffle(united_node_list)
     
     # Handle common elements (present in both parents)
     for node in united_node_list:
         if united_node_list.count(node) == 2:
-            first_child_nodes.append(node)
-            second_child_nodes.append(node)
+            node_weight = get_node_weight(node_weights, node)
+            # Add to both if both have space and budget
+            if (len(first_child_nodes) < k_nodes and first_weight + node_weight <= k_weight_budget and
+                len(second_child_nodes) < k_nodes and second_weight + node_weight <= k_weight_budget):
+                first_child_nodes.append(node)
+                second_child_nodes.append(node)
+                first_weight += node_weight
+                second_weight += node_weight
             while node in united_node_list:
                 united_node_list.remove(node)
     
     # Distribute unique elements
-    for node in united_node_list: 
-        if not node in first_child_nodes and len(first_child_nodes) < k_nodes:
+    for node in united_node_list:
+        node_weight = get_node_weight(node_weights, node)
+        
+        if (len(first_child_nodes) < k_nodes and first_weight + node_weight <= k_weight_budget
+            and node not in first_child_nodes):
             first_child_nodes.append(node)
-        elif not node in second_child_nodes:
+            first_weight += node_weight
+        elif (len(second_child_nodes) < k_nodes and second_weight + node_weight <= k_weight_budget
+              and node not in second_child_nodes):
             second_child_nodes.append(node)
+            second_weight += node_weight
+    
+    # Fill with lightest nodes if needed to reach k_nodes
+    if len(first_child_nodes) < k_nodes:
+        candidates = sorted([n for n in G.nodes if n not in first_child_nodes],
+                          key=lambda n: get_node_weight(node_weights, n))
+        for node in candidates:
+            if len(first_child_nodes) >= k_nodes:
+                break
+            node_weight = get_node_weight(node_weights, node)
+            if first_weight + node_weight <= k_weight_budget:
+                first_child_nodes.append(node)
+                first_weight += node_weight
+    
+    # Similar filling for second child...
     
     return first_child_nodes, second_child_nodes
 ```
 
 **Process:**
 1. Unite parent solutions: S₁ ∪ S₂ and T₁ ∪ T₂
-2. Common elements go to both children
-3. Unique elements distributed randomly
-4. Ensure size constraints are satisfied
+2. Common elements go to both children (if constraints allow)
+3. Unique elements distributed based on available space and weight budget
+4. Fill with lightest nodes to reach exactly k_nodes
+5. Ensure both count and weight constraints are satisfied
 
 **Properties:**
 - Preserves good building blocks
-- Maintains feasibility
+- Maintains feasibility (exact count + weight budget)
 - Introduces controlled randomness
+- Fallback strategy ensures valid offspring
 
 ### Mutation: Descending Mutation
 
-Two mutation strategies are implemented:
+Two mutation strategies are implemented, both respecting the dual-constraint model:
 
 #### Standard Mutation
 ```python
 def mutate(individual):
-    new_individual = individual[0]
+    """Replace one node while maintaining count and weight constraints."""
+    new_individual = copy.deepcopy(individual)
+    
     if random.random() <= 0.5:  # 50% chance to mutate nodes vs edges
-        # Replace random node
+        # Remove a random node
         chosen_node = random.choice(new_individual[0])
         new_individual[0].remove(chosen_node)
-        new_node = random.choice(list(G.nodes))
-        while new_node in new_individual[0]:
-            new_node = random.choice(list(G.nodes))
-        new_individual[0].append(new_node)
+        
+        # Calculate remaining weight budget
+        current_weight = sum(get_node_weight(node_weights, n) for n in new_individual[0])
+        removed_weight = get_node_weight(node_weights, chosen_node)
+        remaining_budget = k_weight_budget - current_weight
+        
+        # Find valid replacement (within budget)
+        candidates = [n for n in G.nodes if n not in new_individual[0]
+                      and get_node_weight(node_weights, n) <= remaining_budget]
+        
+        if candidates:
+            new_node = random.choice(candidates)
+            new_individual[0].append(new_node)
+        else:
+            # No valid replacement: keep original node
+            new_individual[0].append(chosen_node)
     else:
-        # Replace random edge (similar process)
+        # Replace random edge (no weight constraint on edges)
+        chosen_edge = random.choice(new_individual[1])
+        new_individual[1].remove(chosen_edge)
+        new_edge = random.choice(list(G.edges))
+        while new_edge in new_individual[1]:
+            new_edge = random.choice(list(G.edges))
+        new_individual[1].append(new_edge)
+    
     return (new_individual, fitness(new_individual))
 ```
+
+**Mutation Constraints:**
+- Maintains exactly k_nodes count
+- Ensures total weight ≤ k_weight_budget
+- Fallback: keeps original node if no valid replacement exists
 
 #### Descending Mutation (Advanced)
 ```python
@@ -228,10 +319,13 @@ def actualize_mutation_count(current_gen, max_gen):
     mutation_count = max(int(((k_nodes + k_edges)/4)*alfa), 1)
 
 def descending_mutation(individual):
+    """Apply multiple mutations with decreasing intensity."""
     global mutation_count
-    new_individual = individual[0]
+    new_individual = copy.deepcopy(individual)
+    
     for _ in range(mutation_count):
-        # Apply multiple mutations (similar to standard)
+        new_individual = mutate((new_individual, 0))[0]
+    
     return (new_individual, fitness(new_individual))
 ```
 
@@ -239,6 +333,7 @@ def descending_mutation(individual):
 - Mutation intensity decreases over generations
 - High exploration early, exploitation later
 - Prevents premature convergence
+- Each mutation respects dual constraints
 
 ### Population Management
 
@@ -288,7 +383,23 @@ def ga():
 
 ### Overview
 
-The greedy algorithm uses a constructive approach, iteratively selecting the single best removal at each step based on immediate impact on connectivity.
+The greedy algorithm uses a constructive approach with dual constraints, iteratively selecting the single best removal at each step while respecting both node count and weight budget.
+
+### Configuration
+
+```python
+class Config:
+    def __init__(self, G):
+        self.G = G
+        node_weights = get_node_weight_dict(G)
+        total_node_weight = get_total_weight(node_weights)
+        
+        # Dual-constraint model
+        self.K1 = int(len(list(G.nodes)) * 0.05)  # 5% of nodes (fixed count)
+        self.K1_weight_budget = int(total_node_weight * 0.10)  # 10% of weight (constraint)
+        self.K2 = int(len(list(G.edges)) * 0.05)  # 5% of edges
+        self.K = self.K1 + self.K2  # Total budget (count-based)
+```
 
 ### Algorithm Structure
 
@@ -297,32 +408,69 @@ def CNEP1a_2_G1(config):
     S = []  # Selected nodes
     E = []  # Selected edges
     H = config.G.copy()
+    current_node_weight = 0
+    node_weights = get_node_weight_dict(config.G)
     
-    while len(S) + len(E) < config.K:
-        [A, B] = best_nodes_edges_CNEP1A_Alg2(config, S, E, H)
+    # Loop until count constraint reached
+    while len(S) < config.K1 or len(E) < config.K2:
+        # Find best candidates respecting weight budget
+        [A, B] = best_nodes_edges_CNEP1A_Alg2(config, S, E, H, current_node_weight, node_weights)
         
         # Select best node or edge
         z1 = select_random(A) if len(A) > 0 else config.NIL
         z2 = select_random(B) if len(B) > 0 else config.NIL
         
-        # Make decision
+        # Make decision based on constraints
         if z1 != config.NIL:
+            node_weight = get_node_weight(node_weights, z1)
             if z2 != config.NIL:
-                if random.randint(0, 1) == 1:
+                # Both available: check constraints
+                can_add_node = (len(S) < config.K1 and 
+                              current_node_weight + node_weight <= config.K1_weight_budget)
+                can_add_edge = len(E) < config.K2
+                
+                if can_add_node and can_add_edge:
+                    if random.randint(0, 1) == 1:
+                        S.append(z1)
+                        current_node_weight += node_weight
+                        H.remove_nodes_from([z1])
+                    else:
+                        E.append(z2)
+                        H.remove_edges_from([z2])
+                elif can_add_node:
                     S.append(z1)
+                    current_node_weight += node_weight
                     H.remove_nodes_from([z1])
-                else:
+                elif can_add_edge:
                     E.append(z2)
                     H.remove_edges_from([z2])
+                else:
+                    break  # Both budgets exceeded
             else:
-                S.append(z1)
-                H.remove_nodes_from([z1])
+                # Only node available
+                if (len(S) < config.K1 and 
+                    current_node_weight + node_weight <= config.K1_weight_budget):
+                    S.append(z1)
+                    current_node_weight += node_weight
+                    H.remove_nodes_from([z1])
+                else:
+                    break
         else:
-            E.append(z2)
-            H.remove_edges_from([z2])
+            # Only edge available
+            if len(E) < config.K2:
+                E.append(z2)
+                H.remove_edges_from([z2])
+            else:
+                break
     
     return [H, S, E]
 ```
+
+**Key Features:**
+- Tracks current node weight to enforce budget
+- Checks both count (K1) and weight (K1_weight_budget) before adding nodes
+- Terminates when either constraint cannot be satisfied
+- Fixed 5% node count, 10% weight budget
 
 ### Best Element Selection
 
@@ -333,7 +481,7 @@ from payoff_functions import PAYOFF_FUNCTIONS
 
 # Global payoff function set via command line
 payoff_function = PAYOFF_FUNCTIONS.get(payoff_name, 
-                                     PAYOFF_FUNCTIONS['pairwise_connectivity'])
+                                     PAYOFF_FUNCTIONS['pairwise'])
 
 def best_nodes_edges_CNEP1A_Alg2(config, SN, SE, GG):
     selectedEdges = []
@@ -345,21 +493,27 @@ def best_nodes_edges_CNEP1A_Alg2(config, SN, SE, GG):
     P.remove_edges_from(SE)
     node_f_orig = f_pairwise(nx.connected_components(P))
     
-    # Evaluate all possible node removals
+    # Evaluate all possible node removals respecting weight budget
     if len(SN) < config.K1:
         for curr_node in nx.nodes(config.G):
-            R = P.copy()
-            R.remove_nodes_from([curr_node])
-            node_f = node_f_orig - f_pairwise(nx.connected_components(R))
-            
-            if node_f < min_pw:
-                selectedNodes.clear()
-                selectedNodes.append(curr_node)
-                min_pw = node_f
-            elif node_f == min_pw:
-                selectedNodes.append(curr_node)
+            if curr_node not in SN:
+                node_weight = get_node_weight(node_weights, curr_node)
+                
+                # Check weight budget constraint
+                if current_node_weight + node_weight <= config.K1_weight_budget:
+                    R = P.copy()
+                    R.remove_nodes_from([curr_node])
+                    node_f = node_f_orig - f_pairwise(nx.connected_components(R))
+                    
+                    if node_f < min_pw:
+                        selectedNodes.clear()
+                        selectedNodes.append(curr_node)
+                        min_pw = node_f
+                    elif node_f == min_pw:
+                        selectedNodes.append(curr_node)
     
-    # Evaluate all possible edge removals (similar process)
+    # Evaluate all possible edge removals (no weight constraint)
+    # ... similar process
     
     return [selectedNodes, selectedEdges]
 
@@ -369,10 +523,11 @@ def f_pairwise(components_list):
 ```
 
 **Key Properties:**
-- Evaluates all remaining elements
-- Selects based on maximum connectivity reduction
+- Evaluates all remaining elements that satisfy constraints
+- Nodes checked against both count (K1) and weight budget (K1_weight_budget)
+- Selects based on maximum connectivity reduction among valid candidates
 - Handles ties by random selection
-- Respects budget constraints
+- Respects dual-constraint model
 
 ### Multiprocessing Implementation
 

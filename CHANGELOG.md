@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dual-Constraint Model Implementation** (October 28, 2025)
+  - New constraint system: fixed node count + weight budget
+  - Both GA and Greedy algorithms support dual constraints
+  - Fallback strategies for generating feasible solutions
+  - Weight budget parameter in GA command line (5th parameter)
+  - Documentation: `DUAL_CONSTRAINT_MODEL.md`
+  
 - Comprehensive documentation suite
 - Contributing guidelines and code of conduct
 - Installation guide with multiple setup methods
@@ -16,12 +23,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dataset documentation with statistics and sources
 
 ### Changed
+- **Breaking Change**: GA command line parameter order
+  - Added `weight_budget` parameter at position 5
+  - Shifted all subsequent parameters (pop_size, tournament_size, etc.)
+  - New format: `python connectivity_ga.py <input> <run_id> <node_frac> <edge_frac> <weight_budget> <pop_size> <tournament_size> <p_cross> <p_mut> [payoff]`
+  
+- **Genetic Algorithm (`connectivity_ga.py`)**:
+  - `k_nodes` calculated as node count (not weight target)
+  - `k_weight_budget` as constraint on total weight
+  - `generate_one_pair()`: Random sampling with fallback to lightest nodes
+  - `mutate()`: Respects weight budget, keeps original if no valid replacement
+  - `split_node_lists()`: Crossover maintains both constraints
+  - Output filename includes `_wb_<weight_budget>` suffix
+  
+- **Greedy Algorithm (`connectivity_greedy.py`)**:
+  - Config uses K1 (count) and K1_weight_budget (constraint)
+  - Fixed 5% node count, 10% weight budget
+  - Main loop checks both constraints before adding nodes
+  - Candidate evaluation filters by weight budget
+  
+- Updated documentation:
+  - README.md: New command line format and dual-constraint explanation
+  - ALGORITHMS.md: Updated with dual-constraint algorithms
+  - All examples updated with weight_budget parameter
+  
 - Improved code organization and documentation
 - Enhanced README with comprehensive project overview
 - Better structured file organization
 
 ### Fixed
 - Documentation formatting and consistency
+- Syntax errors in greedy algorithm from incomplete replacement
 
 ## [1.0.0] - 2025-10-16
 

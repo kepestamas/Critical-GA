@@ -1,3 +1,4 @@
+import os
 from ast import Global
 from itertools import count
 from typing import Tuple
@@ -29,24 +30,38 @@ print_graph_summary(G, node_weights)
 n = G.number_of_nodes()
 m = G.number_of_edges()
 
-# Calculate total weight budget for nodes
-total_node_weight = get_total_weight(node_weights, G.nodes())
-k_weight = int(total_node_weight * float(sys.argv[3]))  # total weight of nodes to remove
-print(f"Total node weight: {total_node_weight}, Target weight to remove: {k_weight}")
+# Node and edge removal parameters (count-based)
+k_nodes = int(len(list(G.nodes)) * float(sys.argv[3]))  # number of nodes to remove
+print(f"Nodes to remove: {k_nodes}")
 
-k_edges = int(len(list(G.edges)) * float(sys.argv[4])) # number of edges to remove
-pop_size = int(sys.argv[5])
-gen_count = 5000
-tournament_size = int(sys.argv[6]) # number of parents considered in crossover tournament
-p_cross = float(sys.argv[7])
-tournament_round_count = int(pop_size * p_cross * 0.5) # number of rounds in tournament
-mutation_chance = float(sys.argv[8])
+k_edges = int(len(list(G.edges)) * float(sys.argv[4]))  # number of edges to remove
+print(f"Edges to remove: {k_edges}")
+
+# Weight budget constraint for nodes
+total_node_weight = get_total_weight(node_weights, G.nodes())
+weight_budget = float(sys.argv[5])  # budget as fraction of total weight
+k_weight_budget = int(total_node_weight * weight_budget)  # maximum allowed weight sum
+print(f"Total node weight: {total_node_weight}, Weight budget: {k_weight_budget} ({weight_budget*100:.1f}%)")
+
+pop_size = int(sys.argv[6])
+tournament_size = int(sys.argv[7])  # number of parents considered in crossover tournament
+p_cross = float(sys.argv[8])
+tournament_round_count = int(pop_size * p_cross * 0.5)  # number of rounds in tournament
+mutation_chance = float(sys.argv[9])
 
 # Parse payoff function parameter (optional, default: 'pairwise')
-if len(sys.argv) > 9:
-    payoff_function_name = sys.argv[9]
+if len(sys.argv) > 10:
+    payoff_function_name = sys.argv[10]
 else:
     payoff_function_name = 'pairwise'
+
+# Parse generation count parameter (optional, default: 5000)
+if len(sys.argv) > 11:
+    gen_count = int(sys.argv[11])
+else:
+    gen_count = 5000
+
+print(f"Generation count: {gen_count}")
 
 # Validate and get payoff function
 try:
@@ -54,14 +69,14 @@ try:
     print(f"Using payoff function: {payoff_function_name}")
 except ValueError as e:
     print(f"Error: {e}")
-    print(f"Usage: python {sys.argv[0]} <input> <run_id> <node_frac> <edge_frac> <pop_size> <tournament_size> <p_cross> <p_mut> [payoff_function]")
+    print(f"Usage: python {sys.argv[0]} <input> <run_id> <node_frac> <edge_frac> <weight_budget> <pop_size> <tournament_size> <p_cross> <p_mut> [payoff_function] [gen_count]")
     print(f"Available payoff functions: {', '.join(list_payoff_functions())}")
     sys.exit(1)
 
 # Synchronize fitness count with payoff functions module
 payoff_functions.fitness_count = 0
 fitness_count = 0
-mutation_count = max(int(k_weight / 10), 1)  # Adaptive based on weight budget
+mutation_count = max(int((k_nodes + k_edges) / 4), 1)  # Adaptive based on node/edge count
 
 # Parallelization settings
 N_PROCESSES = cpu_count() - 1 if cpu_count() > 1 else 1  # Leave one core free
@@ -73,7 +88,11 @@ PARALLEL_POOL = None  # Global pool to avoid recreation overhead
 # if sys.argv[1] in ["inf-USAir97.mtx", "inf-openflights.edges", "inf-euroroad.edges"]:
 #     max_fitness_count = 10000000
 
-output = "outputs/descending_mutation/ga/timing" + str(sys.argv[2]) + "_" + sys.argv[1] + "_ke_" + str(k_edges) + "_kw_" + str(k_weight) + "_" + payoff_function_name
+# Extract basename from input file to avoid path separators in output filename
+input_basename = os.path.basename(sys.argv[1])
+# Remove file extension for cleaner output filenames
+input_basename_clean = os.path.splitext(input_basename)[0]
+output = "outputs/descending_mutation/ga/timing" + str(sys.argv[2]) + "_" + input_basename_clean + "_ke_" + str(k_edges) + "_kn_" + str(k_nodes) + "_wb_" + str(weight_budget) + "_" + payoff_function_name
 
 node_dictionary = {}
 for i,node in enumerate(list(G.nodes)):
@@ -147,43 +166,40 @@ def generate_pop():
 
 def generate_one_pair():
     """
-    Generate a random individual (node set, edge set) that respects weight constraints.
-    Nodes are selected to have total weight close to k_weight (ideally exactly k_weight).
+    Generate a random individual (node set, edge set) that respects constraints.
+    - Exactly k_nodes nodes must be selected
+    - Total weight of selected nodes must not exceed k_weight_budget
     """
     node_list = list(G.nodes)
-    random.shuffle(node_list)
+    max_attempts = 1000
     
-    # Select nodes with weight sum close to k_weight
-    nodes = []
-    current_weight = 0
-    
-    for node in node_list:
-        node_weight_val = get_node_weight(node_weights, node)
-        if current_weight + node_weight_val <= k_weight:
-            nodes.append(node)
-            current_weight += node_weight_val
-            if current_weight == k_weight:
+    for attempt in range(max_attempts):
+        random.shuffle(node_list)
+        nodes = []
+        current_weight = 0
+        
+        # Try to select exactly k_nodes nodes within budget
+        for node in node_list:
+            if len(nodes) >= k_nodes:
                 break
-    
-    # If we haven't reached k_weight exactly, try to get closer
-    # by replacing nodes if possible (greedy improvement)
-    if current_weight < k_weight:
-        remaining_budget = k_weight - current_weight
-        available_nodes = [n for n in node_list if n not in nodes]
-        for node in available_nodes:
             node_weight_val = get_node_weight(node_weights, node)
-            if node_weight_val == remaining_budget:
+            if current_weight + node_weight_val <= k_weight_budget:
                 nodes.append(node)
                 current_weight += node_weight_val
-                break
-            elif node_weight_val < remaining_budget:
-                nodes.append(node)
-                current_weight += node_weight_val
-                remaining_budget = k_weight - current_weight
-
+        
+        # Check if we successfully got k_nodes within budget
+        if len(nodes) == k_nodes:
+            edge_list = list(G.edges)
+            edges = random.sample(edge_list, min(k_edges, len(edge_list)))
+            return (nodes, edges)
+    
+    # Fallback: if we can't satisfy constraints, select k lightest nodes
+    # This ensures we always return a valid individual
+    node_list_sorted = sorted(node_list, key=lambda n: get_node_weight(node_weights, n))
+    nodes = node_list_sorted[:k_nodes]
     edge_list = list(G.edges)
     edges = random.sample(edge_list, min(k_edges, len(edge_list)))
-
+    
     return (nodes, edges)
 
 
@@ -209,34 +225,36 @@ def get_second(tuple):
 def mutate(individual): 
     """
     Mutate an individual by replacing nodes or edges.
-    For nodes: maintains weight constraint (total weight ≈ k_weight).
+    For nodes: maintains k_nodes count and respects k_weight_budget constraint.
     """
     new_individual = individual[0]
     if (float(sys.argv[3]) != 0 and random.random() <= 0.5) or float(sys.argv[4]) == 0: 
         print("Mutating nodes")
-        # mutate node list with weight constraint
+        # mutate node list with budget constraint
         if len(new_individual[0]) > 0:
             chosen_node = random.choice(new_individual[0])
             chosen_weight = get_node_weight(node_weights, chosen_node)
             new_individual[0].remove(chosen_node)
             
-            # Try to find a replacement node with similar weight
+            # Calculate current weight without the removed node
+            current_weight = get_total_weight(node_weights, new_individual[0])
+            remaining_budget = k_weight_budget - current_weight
+            
+            # Try to find a replacement node that fits within budget
             node_list = list(G.nodes)
             random.shuffle(node_list)
             
-            # First try: exact weight match
+            # Prefer nodes with weight <= remaining_budget
             for new_node in node_list:
                 if new_node not in new_individual[0]:
-                    if get_node_weight(node_weights, new_node) == chosen_weight:
+                    new_weight = get_node_weight(node_weights, new_node)
+                    if new_weight <= remaining_budget:
                         new_individual[0].append(new_node)
                         break
             
-            # Second try: any available node (may change total weight slightly)
-            if len(new_individual[0]) == len(individual[0]) - 1:  # Still missing a node
-                for new_node in node_list:
-                    if new_node not in new_individual[0]:
-                        new_individual[0].append(new_node)
-                        break
+            # If no suitable node found, put back the original node
+            if len(new_individual[0]) < k_nodes:
+                new_individual[0].append(chosen_node)
     else:  
         print("Mutating edges")
         # mutate edge list
@@ -253,40 +271,42 @@ def actualize_mutation_count(current_gen, max_gen):
     global mutation_count
     half_gen = int(max_gen / 2)
     alfa = (half_gen - current_gen) / half_gen
-    mutation_count = max(int((k_weight / 10) * alfa), 1)
+    mutation_count = max(int(((k_nodes + k_edges) / 4) * alfa), 1)
     print(mutation_count)
 
 def descending_mutation(individual):
     """
-    Apply multiple mutations with weight-aware node replacement.
+    Apply multiple mutations maintaining k_nodes count and k_weight_budget constraint.
     """
     global mutation_count
     new_individual = individual[0]
     for _ in range(mutation_count):
         if (float(sys.argv[3]) != 0 and random.random() <= 0.5) or float(sys.argv[4]) == 0: 
             print("Mutating nodes")
-            # mutate node list with weight constraint
+            # mutate node list with budget constraint
             if len(new_individual[0]) > 0:
                 chosen_node = random.choice(new_individual[0])
                 chosen_weight = get_node_weight(node_weights, chosen_node)
                 new_individual[0].remove(chosen_node)
                 
-                # Try to find replacement with similar weight
+                # Calculate remaining budget
+                current_weight = get_total_weight(node_weights, new_individual[0])
+                remaining_budget = k_weight_budget - current_weight
+                
+                # Try to find replacement within budget
                 node_list = list(G.nodes)
                 random.shuffle(node_list)
                 
                 for new_node in node_list:
                     if new_node not in new_individual[0]:
-                        if get_node_weight(node_weights, new_node) == chosen_weight:
+                        new_weight = get_node_weight(node_weights, new_node)
+                        if new_weight <= remaining_budget:
                             new_individual[0].append(new_node)
                             break
                 
-                # Fallback: any node
+                # If no suitable node found, put back original
                 if len(new_individual[0]) < len(individual[0][0]):
-                    for new_node in node_list:
-                        if new_node not in new_individual[0]:
-                            new_individual[0].append(new_node)
-                            break
+                    new_individual[0].append(chosen_node)
         else:  
             print("Mutating edges")
             # mutate edge list
@@ -313,8 +333,8 @@ def selection(evaluated_population):
 
 def split_node_lists(united_node_list):
     """
-    Split united node list into two children, respecting weight constraints.
-    Each child should have total weight close to k_weight.
+    Split united node list into two children, maintaining k_nodes count and respecting k_weight_budget.
+    Each child should have exactly k_nodes nodes with total weight <= k_weight_budget.
     """
     first_child_nodes = []
     second_child_nodes = []
@@ -328,30 +348,41 @@ def split_node_lists(united_node_list):
             while node in united_node_list:
                 united_node_list.remove(node)
     
-    # Second pass: distribute remaining nodes based on weight constraints
+    # Second pass: distribute remaining nodes to reach k_nodes each, respecting budget
     first_weight = get_total_weight(node_weights, first_child_nodes)
     second_weight = get_total_weight(node_weights, second_child_nodes)
     
     for node in united_node_list:
         node_weight_val = get_node_weight(node_weights, node)
         
-        # Assign to child that needs more weight (closer to k_weight)
-        if first_weight + node_weight_val <= k_weight and (first_weight <= second_weight):
+        # Try to assign to child that has space and budget
+        if len(first_child_nodes) < k_nodes and first_weight + node_weight_val <= k_weight_budget:
             first_child_nodes.append(node)
             first_weight += node_weight_val
-        elif second_weight + node_weight_val <= k_weight:
+        elif len(second_child_nodes) < k_nodes and second_weight + node_weight_val <= k_weight_budget:
             second_child_nodes.append(node)
             second_weight += node_weight_val
-        else:
-            # If neither can fit exactly, choose the one closer to target
-            if abs((first_weight + node_weight_val) - k_weight) < abs((second_weight + node_weight_val) - k_weight):
-                if first_weight + node_weight_val <= k_weight * 1.2:  # Allow 20% overflow
-                    first_child_nodes.append(node)
-                    first_weight += node_weight_val
-            else:
-                if second_weight + node_weight_val <= k_weight * 1.2:  # Allow 20% overflow
-                    second_child_nodes.append(node)
-                    second_weight += node_weight_val
+        # If neither can fit with budget, try to assign to the one with more room
+        elif len(first_child_nodes) < k_nodes:
+            first_child_nodes.append(node)
+            first_weight += node_weight_val
+        elif len(second_child_nodes) < k_nodes:
+            second_child_nodes.append(node)
+            second_weight += node_weight_val
+    
+    # If we don't have exactly k_nodes, fill with lightest available nodes
+    if len(first_child_nodes) < k_nodes or len(second_child_nodes) < k_nodes:
+        all_nodes = list(G.nodes)
+        available_nodes = [n for n in all_nodes if n not in first_child_nodes and n not in second_child_nodes]
+        available_nodes_sorted = sorted(available_nodes, key=lambda n: get_node_weight(node_weights, n))
+        
+        for node in available_nodes_sorted:
+            if len(first_child_nodes) < k_nodes:
+                first_child_nodes.append(node)
+            elif len(second_child_nodes) < k_nodes:
+                second_child_nodes.append(node)
+            if len(first_child_nodes) == k_nodes and len(second_child_nodes) == k_nodes:
+                break
     
     return first_child_nodes, second_child_nodes
 
@@ -493,7 +524,15 @@ def ga():
         
         print(str(current_gen) + " " + str(payoff_functions.get_fitness_count()))
         print(str(current_gen) + " " + str(average_connectivity(evaluated_population)))
-        print(str(current_gen) + " " + str(evaluated_population[0][1]) + " " + str(evaluated_population[0][0]), file=f)
+        
+        # For components payoff function, display the actual number of components (negative of fitness)
+        # This makes the output more intuitive: 3 components instead of -3.0
+        if payoff_function_name == 'components':
+            display_fitness = -evaluated_population[0][1]
+        else:
+            display_fitness = evaluated_population[0][1]
+            
+        print(str(current_gen) + " " + str(display_fitness) + " " + str(evaluated_population[0][0]), file=f)
 
         # if fitness_count > max_fitness_count:
         #     break

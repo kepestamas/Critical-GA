@@ -79,13 +79,16 @@ class config:
         # self.K1 = iK1 if (iK1>0) else 2 # vertices to delete
         # self.K2 = iK2 if (iK2>0) else 2 # edges to delete
         
-        # Calculate weight-based budget for nodes
-        total_node_weight = get_total_weight(node_weights, self.G.nodes())
-        self.K1_weight = int(total_node_weight * 0.05)  # target weight of nodes to remove (5%)
+        # Node count to remove (fixed)
+        self.K1 = int(len(list(self.G.nodes)) * 0.05)  # number of nodes to remove (5%)
         self.K2 = int(len(list(self.G.edges)) * 0.03)  # number of edges to remove (3%)
-
-        self.K = self.K1_weight + self.K2  # Total budget (weight for nodes + count for edges)
-        self.current_node_weight = 0  # Track cumulative weight of removed nodes
+        
+        # Weight budget constraint for nodes
+        total_node_weight = get_total_weight(node_weights, self.G.nodes())
+        weight_budget_fraction = 0.10  # Budget as fraction of total weight (10%)
+        self.K1_weight_budget = int(total_node_weight * weight_budget_fraction)  # maximum allowed weight sum
+        
+        self.K = self.K1 + self.K2  # Total budget (count for both nodes and edges)
         self.INF = self.G.number_of_nodes() ** 2
         # if iterCount == 0 :
         #     self.IterationCount = self.G.number_of_nodes() ** 2
@@ -109,8 +112,9 @@ def print_config(mainConfig):
     print("G - edgecount: " + str(len(mainConfig.G.edges)))
     print("G - nodecount: " + str(len(mainConfig.G.nodes)),'\n')
 
-    print('Node weight to remove: ', mainConfig.K1_weight)
+    print('Vertices to delete: ', mainConfig.K1)
     print('   Edges to delete: ', mainConfig.K2)
+    print('Weight budget for nodes: ', mainConfig.K1_weight_budget)
     print('        Iterations:',mainConfig.IterationCount,'\n')
     print('         Processes:',mainConfig.pool_size,'\n')
 
@@ -144,7 +148,7 @@ def select_random(lst):
 def best_nodes_edges_CNEP1A_Alg2(config, SN, SE, GG, current_node_weight): 
     """
     Find best nodes and edges to remove.
-    For nodes: track cumulative weight instead of count.
+    For nodes: respects both count (K1) and weight budget (K1_weight_budget) constraints.
     """
     selectedEdges = []
     selectedNodes = []
@@ -158,15 +162,15 @@ def best_nodes_edges_CNEP1A_Alg2(config, SN, SE, GG, current_node_weight):
     if (config.iDebug == 2):
         print("--------------------------------------------\nKezdes")
         print("   node_f_orig = ", node_f_orig)
-        print(f"   current_node_weight = {current_node_weight}/{config.K1_weight}")
+        print(f"   nodes removed: {len(SN)}/{config.K1}, weight: {current_node_weight}/{config.K1_weight_budget}")
     
-    # Check node budget: based on weight
-    if current_node_weight < config.K1_weight:
+    # Check node budget: based on both count and weight
+    if len(SN) < config.K1:
         for curr_node in SG1:
             if curr_node not in SN:  # Skip already removed nodes
                 node_weight = get_node_weight(node_weights, curr_node)
-                # Only consider nodes that won't exceed budget (with some tolerance)
-                if current_node_weight + node_weight <= config.K1_weight * 1.1:  # 10% tolerance
+                # Only consider nodes that won't exceed weight budget
+                if current_node_weight + node_weight <= config.K1_weight_budget:
                     R = P.copy()
                     R.remove_nodes_from([curr_node])
                     node_f = node_f_orig - fitness(nx.connected_components(R))
@@ -203,8 +207,8 @@ def CNEP1a_2_G1(config):
     
     H = config.G.copy()
     
-    # Continue while we haven't exceeded budgets
-    while current_node_weight < config.K1_weight or len(E) < config.K2:
+    # Continue while we haven't reached the count limits
+    while len(S) < config.K1 or len(E) < config.K2:
         [A, B] = best_nodes_edges_CNEP1A_Alg2(config, S, E, H, current_node_weight)
         
         if (config.iDebug == 2):
@@ -223,9 +227,10 @@ def CNEP1a_2_G1(config):
         # Decide what to remove based on budget availability
         if (z1 != config.NIL):
             if (z2 != config.NIL):
-                # Both available: choose randomly or based on priority
+                # Both available: choose based on which budget still has room
                 node_weight = get_node_weight(node_weights, z1)
-                can_add_node = current_node_weight + node_weight <= config.K1_weight
+                can_add_node = (len(S) < config.K1 and 
+                               current_node_weight + node_weight <= config.K1_weight_budget)
                 can_add_edge = len(E) < config.K2
                 
                 if can_add_node and can_add_edge:
@@ -234,7 +239,7 @@ def CNEP1a_2_G1(config):
                         current_node_weight += node_weight
                         H.remove_nodes_from([z1])
                         if (config.iDebug == 2):
-                            print(f"--> (del)N, total weight now: {current_node_weight}")
+                            print(f"--> (del)N, total weight now: {current_node_weight}/{config.K1_weight_budget}")
                     else:
                         E.append(z2)
                         H.remove_edges_from([z2])
@@ -245,23 +250,23 @@ def CNEP1a_2_G1(config):
                     current_node_weight += node_weight
                     H.remove_nodes_from([z1])
                     if (config.iDebug == 2):
-                        print(f"--> (del)N, total weight now: {current_node_weight}")
+                        print(f"--> (del)N, total weight now: {current_node_weight}/{config.K1_weight_budget}")
                 elif can_add_edge:
                     E.append(z2)
                     H.remove_edges_from([z2])
                     if (config.iDebug == 2):
                         print("--> (del)E")
                 else:
-                    break  # Both budgets exceeded
+                    break  # Both budgets exhausted
             else:
                 # Only node available
                 node_weight = get_node_weight(node_weights, z1)
-                if current_node_weight + node_weight <= config.K1_weight:
+                if len(S) < config.K1 and current_node_weight + node_weight <= config.K1_weight_budget:
                     S.append(z1)
                     current_node_weight += node_weight
                     H.remove_nodes_from([z1])
                     if (config.iDebug == 2):
-                        print(f"--> (del)N, total weight now: {current_node_weight}")
+                        print(f"--> (del)N, total weight now: {current_node_weight}/{config.K1_weight_budget}")
                 else:
                     break  # Node budget exceeded
         else:
@@ -275,7 +280,7 @@ def CNEP1a_2_G1(config):
                 break  # Edge budget exceeded
     
     if config.iDebug >= 1:
-        print(f"\nFinal: Removed {len(S)} nodes (weight: {current_node_weight}/{config.K1_weight}), {len(E)} edges")
+        print(f"\nFinal: Removed {len(S)} nodes (weight: {current_node_weight}/{config.K1_weight_budget}), {len(E)} edges")
     
     return [H, S, E]
     

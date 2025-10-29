@@ -27,7 +27,8 @@ The Critical Network Disruption Problem (CNDP) is formulated as follows:
 
 Given:
 - A network G(V, E) with vertices V and edges E
-- Budget constraints: k₁ (maximum nodes to remove) and k₂ (maximum edges to remove)
+- Node constraints: k_nodes (exact number of nodes to remove) and k_weight_budget (maximum total weight of removed nodes)
+- Edge constraint: k_edges (maximum edges to remove)
 
 Objective:
 - Optimize network connectivity according to selected payoff function
@@ -35,17 +36,17 @@ Objective:
 
 ### Payoff Functions
 
-1. **Pairwise Connectivity** *(default)*
+1. **Pairwise Connectivity** *(default)* - `pairwise`
    - Minimize: Σ(|C|·(|C|-1)/2) for all connected components C
    - Measures total number of pairwise connections within components
    - Original CNDP formulation
 
-2. **Number of Components**
+2. **Number of Components** - `components`
    - Maximize: Number of connected components in resulting network
    - Seeks to fragment network into as many isolated pieces as possible
    - Alternative perspective on network disruption
 
-3. **Largest Component Size**
+3. **Largest Component Size** - `largest`
    - Minimize: Size of the largest connected component
    - Focuses on reducing the dominant cluster in the network
    - Useful for analyzing network robustness
@@ -99,33 +100,45 @@ cd Critical-GA
 ### Genetic Algorithm
 
 ```bash
-python connectivity_ga.py <input_file> <run_id> <node_fraction> <edge_fraction> <population_size> <tournament_size> <crossover_probability> <mutation_probability> [payoff_function]
+python connectivity_ga.py <input_file> <run_id> <node_fraction> <edge_fraction> <weight_budget> <population_size> <tournament_size> <crossover_probability> <mutation_probability> [payoff_function] [generation_count]
 ```
 
 **Parameters:**
 - `input_file`: Network file from inputs/ directory
 - `run_id`: Identifier for this experimental run
-- `node_fraction`: Fraction of nodes to remove (0.0-1.0)
+- `node_fraction`: Fraction of nodes to remove (0.0-1.0) - determines exact count
 - `edge_fraction`: Fraction of edges to remove (0.0-1.0)
+- `weight_budget`: Fraction of total node weight (0.0-1.0) - constraint on selected nodes
 - `population_size`: GA population size (recommended: 50-100)
 - `tournament_size`: Tournament selection size (recommended: 3-5)
 - `crossover_probability`: Crossover rate (recommended: 0.8-0.9)
 - `mutation_probability`: Mutation rate (recommended: 0.02-0.05)
 - `payoff_function`: *(Optional)* Fitness function to use:
-  - `pairwise_connectivity` *(default)*: Original pairwise connectivity measure
-  - `number_of_components`: Maximize number of connected components
-  - `largest_component_size`: Minimize size of largest connected component
+  - `pairwise` *(default)*: Original pairwise connectivity measure
+  - `components`: Maximize number of connected components
+  - `largest`: Minimize size of largest connected component
+- `generation_count`: *(Optional)* Number of generations to run (default: 5000)
+
+**Dual-Constraint Model:**
+The algorithm uses two constraints:
+- **Fixed node count**: Exactly `k_nodes = |V| × node_fraction` nodes must be removed
+- **Weight budget**: Total weight of removed nodes must not exceed `k_weight_budget = Σw(v) × weight_budget`
+
+Both constraints must be satisfied simultaneously. For unweighted graphs, all nodes have weight 1.
 
 **Examples:**
 ```bash
-# Default pairwise connectivity
-python connectivity_ga.py karate.txt 1 0.05 0.03 100 3 0.8 0.05
+# Default pairwise connectivity - remove 5% nodes within 10% weight budget
+python connectivity_ga.py karate.txt 1 0.05 0.03 0.10 100 3 0.8 0.05
 
 # Maximize connected components
-python connectivity_ga.py karate.txt 1 0.05 0.03 100 3 0.8 0.05 number_of_components
+python connectivity_ga.py karate.txt 1 0.05 0.03 0.10 100 3 0.8 0.05 components
 
 # Minimize largest component
-python connectivity_ga.py karate.txt 1 0.05 0.03 100 3 0.8 0.05 largest_component_size
+python connectivity_ga.py karate.txt 1 0.05 0.03 0.10 100 3 0.8 0.05 largest
+
+# Quick test with reduced generations
+python connectivity_ga.py karate.txt 1 0.05 0.03 0.10 100 3 0.8 0.05 components 200
 ```
 
 ### Greedy Algorithm
@@ -138,9 +151,9 @@ python connectivity_greedy.py <input_file> <run_id> [options] [payoff_function]
 - `input_file`: Network file from inputs/ directory
 - `run_id`: Identifier for this experimental run
 - `payoff_function`: *(Optional)* Fitness function to use:
-  - `pairwise_connectivity` *(default)*: Original pairwise connectivity measure
-  - `number_of_components`: Maximize number of connected components
-  - `largest_component_size`: Minimize size of largest connected component
+  - `pairwise` *(default)*: Original pairwise connectivity measure
+  - `components`: Maximize number of connected components
+  - `largest`: Minimize size of largest connected component
 
 **Examples:**
 ```bash
@@ -148,10 +161,10 @@ python connectivity_greedy.py <input_file> <run_id> [options] [payoff_function]
 python connectivity_greedy.py karate.txt 1
 
 # Maximize connected components
-python connectivity_greedy.py karate.txt 1 -v 2 -e 2 number_of_components
+python connectivity_greedy.py karate.txt 1 -v 2 -e 2 components
 
 # Minimize largest component
-python connectivity_greedy.py karate.txt 1 -v 2 -e 2 largest_component_size
+python connectivity_greedy.py karate.txt 1 -v 2 -e 2 largest
 ```
 
 ### Batch Processing
@@ -331,11 +344,16 @@ Various biological and infrastructure network formats are supported through form
 
 ### GA Output Format
 ```
-outputs/descending_mutation/ga/timing<run_id>_<input_file>_ke_<k_edges>_kn_<k_nodes>
+outputs/descending_mutation/ga/timing<run_id>_<input_file>_ke_<k_edges>_kn_<k_nodes>_wb_<weight_budget>
 ```
 
 **Content:**
 Each line contains: `<generation> <fitness_evaluations> <best_fitness> <solution>`
+
+The filename includes:
+- `ke`: Number of edges removed
+- `kn`: Number of nodes removed (fixed count)
+- `wb`: Weight budget constraint applied
 
 ### Greedy Output Format
 ```
@@ -427,6 +445,13 @@ This will execute multiple runs across different networks and parameter configur
 **Node Removal Fraction:**
 - Conservative: 0.01-0.05 (1-5% of nodes)
 - Aggressive: 0.1-0.2 (10-20% of nodes)
+- Determines exact number of nodes to remove
+
+**Weight Budget:**
+- Conservative: 0.05-0.15 (5-15% of total weight)
+- Aggressive: 0.2-0.4 (20-40% of total weight)
+- Constrains which node combinations are valid
+- For unweighted graphs, set similar to or higher than node_fraction
 
 **Edge Removal Fraction:**
 - Conservative: 0.01-0.03 (1-3% of edges)

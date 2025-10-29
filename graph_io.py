@@ -55,8 +55,8 @@ def read_graph(input_path: str, detect_weights: bool = True) -> Tuple[nx.Graph, 
     with open(input_path, "r") as f:
         lines = f.readlines()
     
-    # Weighted graph formats: cor_*, bog_*, mac_*
-    if detect_weights and (filename.startswith('cor_') or filename.startswith('bog_')):
+    # Weighted graph formats: cor_*, bog_*, hos_*, mac_*
+    if detect_weights and (filename.startswith('cor_') or filename.startswith('bog_') or filename.startswith('hos_')):
         # Format: adjacency list + weights
         # Line 0: number of nodes
         # Lines 1 to n: node: neighbor1 neighbor2 ...
