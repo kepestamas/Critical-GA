@@ -52,7 +52,7 @@ def main():
     
     # Parameter combinations to test
     parameters = {
-        'budget': [0.03, 0.05, 0.08],
+        'budget': [0.15, 0.20, 0.25, 1.00],
         'node_fraction': [0.05],  # Fixed
         'edge_fraction': [0.03],  # Fixed
         'population_size': [50, 100],
@@ -148,15 +148,20 @@ def main():
                         
                         # Run the GA
                         try:
-                            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)  # 5 min timeout
+                            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)  # 10 min timeout
+
+                            # Calculate runtime
+                            runtime = time.time() - start_time
                             
                             if result.returncode != 0:
                                 print(f"      ERROR: GA failed with return code {result.returncode}")
                                 print(f"      stderr: {result.stderr}")
+                                if result.stdout:
+                                    print(f"      stdout: {result.stdout[:200]}...")  # First 200 chars
                                 best_fitness = None
                             else:
-                                # Calculate runtime
-                                runtime = time.time() - start_time
+                                # Calculate runtime - not needed since it moved outside the if-else
+                                # runtime = time.time() - start_time
                                 
                                 # Extract best fitness from output file
                                 # Output filename format from connectivity_ga.py:
