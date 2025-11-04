@@ -65,8 +65,8 @@ def main():
     # Final parameter combinations - tuning for node weights GA
     parameters = {
         'budget': [0.05, 1.00],
-        'node_fraction': [0.05],  # Fixed - no moves to make
-        'edge_fraction': [0.03],  # Fixed - no moves to make
+        'node_fraction': [0.0],  # Fixed - no moves to make
+        'edge_fraction': [0.0],  # Fixed - no moves to make
         'population_size': [50],
         'tournament_size': [3],
         'p_crossover': [0.8],
@@ -74,7 +74,7 @@ def main():
         'payoff_function': ['largest','pairwise','components']  # not fixed
     }
 
-    max_fitness_only = False # just a max_fitness value run, no moves made
+    max_fitness_only = True # just a max_fitness value run, no moves made
 
     generations = 200  # Fixed number of generations per run
     
