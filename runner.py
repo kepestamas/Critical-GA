@@ -77,6 +77,8 @@ def main():
     max_fitness_only = False # just a max_fitness value run, no moves made
 
     generations = 200  # Fixed number of generations per run
+
+    ga_timeout = 1200  # seconds
     
     # Input files from "Tuning"
     # input_files = [
@@ -88,57 +90,58 @@ def main():
     
     # Input files from "Testing"
     input_files = [
-        "Testing/cor_adjnoun-w.txt",
-        "Testing/cor_celegans_metabolic-w.txt",
-        "Testing/cor_celegansneural-w.txt",
-        "Testing/cor_dolphins-w.txt",
-        "Testing/cor_football-w.txt",
-        "Testing/cor_jazz-w.txt",
-        "Testing/cor_karate-w.txt",
-        "Testing/cor_lesmis-w.txt",
-        "Testing/cor_n050plai01.txt",
-        "Testing/cor_n100plai01.txt",
-        "Testing/cor_n150plai01.txt",
-        "Testing/cor_n200plai01.txt",
-        "Testing/cor_n250plai01.txt",
-        "Testing/cor_n300plai01.txt",
-        "Testing/cor_n350plai01.txt",
-        "Testing/cor_polbooks-w.txt",
-        "Testing/hos_20_r1_1.txt",
-        "Testing/hos_20_r2_1.txt",
-        "Testing/hos_25_r1_1.txt",
-        "Testing/hos_25_r2_1.txt",
-        "Testing/hos_30_r1_1.txt",
-        "Testing/hos_30_r2_1.txt",
-        "Testing/hos_35_r1_1.txt",
-        "Testing/hos_35_r2_1.txt",
-        "Testing/hos_40_r1_1.txt",
-        "Testing/hos_40_r2_1.txt",
-        "Testing/hos_45_r1_1.txt",
-        "Testing/hos_45_r2_1.txt",
-        "Testing/hos_50_r1_1.txt",
-        "Testing/hos_50_r2_1.txt",
-        "Testing/mac_grafo10dens30.txt",
-        "Testing/mac_grafo11dens30.txt",
-        "Testing/mac_grafo12dens30.txt",
-        "Testing/mac_grafo13dens30.txt",
-        "Testing/mac_grafo14dens30.txt",
-        "Testing/mac_grafo15dens30.txt",
-        "Testing/mac_grafo16dens30.txt",
-        "Testing/mac_grafo17dens30.txt",
-        "Testing/mac_grafo18dens30.txt",
-        "Testing/mac_grafo19dens30.txt",
-        "Testing/mac_grafo20dens30.txt",
-        "Testing/mac_grafo21dens30.txt",
-        "Testing/mac_grafo22dens30.txt",
-        "Testing/mac_grafo23dens30.txt",
-        "Testing/mac_grafo24dens30.txt",
-        "Testing/mac_grafo25dens30.txt",
-        "Testing/mac_grafo26dens30.txt",
-        "Testing/mac_grafo27dens30.txt",
-        "Testing/mac_grafo28dens30.txt",
-        "Testing/mac_grafo29dens30.txt",
-        "Testing/mac_grafo30dens30.txt"
+        "Testing/cor_ip_as_network-w.txt",
+        # "Testing/cor_adjnoun-w.txt",
+        # "Testing/cor_celegans_metabolic-w.txt",
+        # "Testing/cor_celegansneural-w.txt",
+        # "Testing/cor_dolphins-w.txt",
+        # "Testing/cor_football-w.txt",
+        # "Testing/cor_jazz-w.txt",
+        # "Testing/cor_karate-w.txt",
+        # "Testing/cor_lesmis-w.txt",
+        # "Testing/cor_n050plai01.txt",
+        # "Testing/cor_n100plai01.txt",
+        # "Testing/cor_n150plai01.txt",
+        # "Testing/cor_n200plai01.txt",
+        # "Testing/cor_n250plai01.txt",
+        # "Testing/cor_n300plai01.txt",
+        # "Testing/cor_n350plai01.txt",
+        # "Testing/cor_polbooks-w.txt",
+        # "Testing/hos_20_r1_1.txt",
+        # "Testing/hos_20_r2_1.txt",
+        # "Testing/hos_25_r1_1.txt",
+        # "Testing/hos_25_r2_1.txt",
+        # "Testing/hos_30_r1_1.txt",
+        # "Testing/hos_30_r2_1.txt",
+        # "Testing/hos_35_r1_1.txt",
+        # "Testing/hos_35_r2_1.txt",
+        # "Testing/hos_40_r1_1.txt",
+        # "Testing/hos_40_r2_1.txt",
+        # "Testing/hos_45_r1_1.txt",
+        # "Testing/hos_45_r2_1.txt",
+        # "Testing/hos_50_r1_1.txt",
+        # "Testing/hos_50_r2_1.txt",
+        # "Testing/mac_grafo10dens30.txt",
+        # "Testing/mac_grafo11dens30.txt",
+        # "Testing/mac_grafo12dens30.txt",
+        # "Testing/mac_grafo13dens30.txt",
+        # "Testing/mac_grafo14dens30.txt",
+        # "Testing/mac_grafo15dens30.txt",
+        # "Testing/mac_grafo16dens30.txt",
+        # "Testing/mac_grafo17dens30.txt",
+        # "Testing/mac_grafo18dens30.txt",
+        # "Testing/mac_grafo19dens30.txt",
+        # "Testing/mac_grafo20dens30.txt",
+        # "Testing/mac_grafo21dens30.txt",
+        # "Testing/mac_grafo22dens30.txt",
+        # "Testing/mac_grafo23dens30.txt",
+        # "Testing/mac_grafo24dens30.txt",
+        # "Testing/mac_grafo25dens30.txt",
+        # "Testing/mac_grafo26dens30.txt",
+        # "Testing/mac_grafo27dens30.txt",
+        # "Testing/mac_grafo28dens30.txt",
+        # "Testing/mac_grafo29dens30.txt",
+        # "Testing/mac_grafo30dens30.txt"
     ]
     
     # Create output directory
@@ -219,7 +222,7 @@ def main():
                         # Run the GA
                         try:
                             if (max_fitness_only and run_num == 1) or (not max_fitness_only):
-                                result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)  # 10 min timeout
+                                result = subprocess.run(cmd, capture_output=True, text=True, timeout=ga_timeout)  # 20 min timeout
 
                             # Calculate runtime
                             runtime = time.time() - start_time
@@ -255,7 +258,7 @@ print(f'{{k_edges}}_{{k_nodes}}')
                                 
                                 try:
                                     if (max_fitness_only and run_num == 1) or (not max_fitness_only):
-                                        temp_result = subprocess.run(temp_cmd, capture_output=True, text=True, timeout=30)
+                                        temp_result = subprocess.run(temp_cmd, capture_output=True, text=True, timeout=ga_timeout)
                                     if temp_result.returncode == 0:
                                         k_info = temp_result.stdout.strip()
                                         k_edges, k_nodes = k_info.split('_')
@@ -278,7 +281,7 @@ print(f'{{k_edges}}_{{k_nodes}}')
                                     runtime = time.time() - start_time
                                 
                         except subprocess.TimeoutExpired:
-                            print(f"      ERROR: GA timeout after 5 minutes")
+                            print(f"      ERROR: GA timeout after {ga_timeout // 60} minutes")
                             best_fitness = None
                             runtime = 300.0
                         
