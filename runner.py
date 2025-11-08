@@ -78,7 +78,7 @@ def main():
 
     generations = 200  # Fixed number of generations per run
 
-    ga_timeout = 1200  # seconds
+    ga_timeout = 2000  # seconds
     
     # Input files from "Tuning"
     # input_files = [
@@ -91,6 +91,7 @@ def main():
     # Input files from "Testing"
     input_files = [
         "Testing/cor_ip_as_network-w.txt",
+        "Testing/cor_ip_as_network_caida-w.txt",
         # "Testing/cor_adjnoun-w.txt",
         # "Testing/cor_celegans_metabolic-w.txt",
         # "Testing/cor_celegansneural-w.txt",
@@ -283,7 +284,7 @@ print(f'{{k_edges}}_{{k_nodes}}')
                         except subprocess.TimeoutExpired:
                             print(f"      ERROR: GA timeout after {ga_timeout // 60} minutes")
                             best_fitness = None
-                            runtime = 300.0
+                            runtime = ga_timeout
                         
                         # Write result to CSV
                         csv_row = [
