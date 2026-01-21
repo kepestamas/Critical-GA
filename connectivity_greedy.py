@@ -12,6 +12,7 @@ import os
 import sys, getopt
 import random
 import math
+from pathlib import Path
 
 # import matplotlib.pyplot as plt
 
@@ -54,16 +55,33 @@ def print_usage():
 #CONFIGURATION CLASS
 class config:
 
-    def __init__(self, input_file, iterCount, iK1, iK2, iDebug=2):
+    def __init__(self, input_file, iterCount, iK1, iK2, iDebug=0):
         global node_weights
         
-        self.inputFile = input_file
+        # Resolve input path: allow bare name (assumed under inputs/) or a provided path
+        input_arg = Path(sys.argv[1])
+        candidate_paths = [
+            input_arg,
+            Path("inputs") / input_arg,
+            Path("inputs/Testing") / input_arg,
+        ]
+        input_path = None
+        for candidate in candidate_paths:
+            if candidate.exists():
+                input_path = candidate
+                break
+        if input_path is None:
+            raise FileNotFoundError(f"Input file not found: {input_arg} (tried: {candidate_paths})")
 
-        input = "inputs/" + sys.argv[1]
-        output = "outputs/reruns/greedy/" + str(sys.argv[2]) + "_" + sys.argv[1]
+        self.inputFile = str(input_path)
+
+        # Prepare output path under outputs/reruns/greedy with sanitized name
+        output_dir = Path("outputs/reruns/greedy")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output = output_dir / f"{sys.argv[2]}_{input_path.name}"
 
         # Use graph_io module to read graph
-        self.G, node_weights_loaded = read_graph(input, detect_weights=True)
+        self.G, node_weights_loaded = read_graph(str(input_path), detect_weights=True)
         node_weights = node_weights_loaded  # Always a dict now, with weight 1 for unweighted graphs
         
         # Print weight info for debugging
@@ -83,10 +101,12 @@ class config:
         self.K1 = int(len(list(self.G.nodes)) * 0.05)  # number of nodes to remove (5%)
         self.K2 = int(len(list(self.G.edges)) * 0.03)  # number of edges to remove (3%)
         
-        # Weight budget constraint for nodes
+        # Weight budget constraint for nodes; allows override via GREEDY_WEIGHT_BUDGET env var
         total_node_weight = get_total_weight(node_weights, self.G.nodes())
-        weight_budget_fraction = 0.10  # Budget as fraction of total weight (10%)
-        self.K1_weight_budget = int(total_node_weight * weight_budget_fraction)  # maximum allowed weight sum
+        weight_budget_fraction = float(os.getenv("GREEDY_WEIGHT_BUDGET", "0.05"))
+        weight_budget_fraction = max(0.0, min(weight_budget_fraction, 1.0))
+        self.weight_budget_fraction = weight_budget_fraction
+        self.K1_weight_budget = int(total_node_weight * self.weight_budget_fraction)  # maximum allowed weight sum
         
         self.K = self.K1 + self.K2  # Total budget (count for both nodes and edges)
         self.INF = self.G.number_of_nodes() ** 2
@@ -94,7 +114,7 @@ class config:
         #     self.IterationCount = self.G.number_of_nodes() ** 2
         # else:
         #     self.IterationCount = iterCount
-        self.IterationCount = 50
+        self.IterationCount = 5  # Reduced for faster execution (greedy is mostly deterministic)
 
 
         self.pool_size = multiprocessing.cpu_count() - 1
@@ -115,13 +135,16 @@ def print_config(mainConfig):
     print('Vertices to delete: ', mainConfig.K1)
     print('   Edges to delete: ', mainConfig.K2)
     print('Weight budget for nodes: ', mainConfig.K1_weight_budget)
+    print('Weight budget fraction: ', mainConfig.weight_budget_fraction)
     print('        Iterations:',mainConfig.IterationCount,'\n')
     print('         Processes:',mainConfig.pool_size,'\n')
 
 #MULTIPROCESSING SETUP
-def pool_init(q):
-    global que # make queue global in workers
+def pool_init(q, pf_name):
+    global que, payoff_function # make queue and payoff_function global in workers
     que = q
+    # Look up function by name in worker process
+    payoff_function = get_payoff_function(pf_name)
 
 # Global payoff function (will be set during initialization)
 payoff_function = None
@@ -149,10 +172,14 @@ def best_nodes_edges_CNEP1A_Alg2(config, SN, SE, GG, current_node_weight):
     """
     Find best nodes and edges to remove.
     For nodes: respects both count (K1) and weight budget (K1_weight_budget) constraints.
+    
+    We want to MAXIMIZE the improvement (delta = orig_fitness - new_fitness).
+    For minimization payoffs (pairwise, largest): larger delta means bigger decrease.
+    For components (negative values): larger delta means more components created.
     """
     selectedEdges = []
     selectedNodes = []
-    min_pw = config.INF
+    max_delta = -config.INF  # Start with very negative value, look for maximum
     P = GG.copy()
     P.remove_nodes_from(SN)
     P.remove_edges_from(SE)
@@ -173,26 +200,26 @@ def best_nodes_edges_CNEP1A_Alg2(config, SN, SE, GG, current_node_weight):
                 if current_node_weight + node_weight <= config.K1_weight_budget:
                     R = P.copy()
                     R.remove_nodes_from([curr_node])
-                    node_f = node_f_orig - fitness(nx.connected_components(R))
+                    delta = node_f_orig - fitness(nx.connected_components(R))
 
-                    if node_f < min_pw:
+                    if delta > max_delta:
                         selectedNodes.clear()
                         selectedNodes.append(curr_node)
-                        min_pw = node_f
-                    elif node_f == min_pw:
+                        max_delta = delta
+                    elif delta == max_delta:
                         selectedNodes.append(curr_node)
 
     if len(SE) < config.K2:
          for curr_edge in SG2:
             R = P.copy()
             R.remove_edges_from([curr_edge])
-            node_f = node_f_orig - fitness(nx.connected_components(R))
+            delta = node_f_orig - fitness(nx.connected_components(R))
 
-            if node_f < min_pw:
+            if delta > max_delta:
                 selectedEdges.clear()
                 selectedEdges.append(curr_edge)
-                min_pw = node_f
-            elif node_f == min_pw:
+                max_delta = delta
+            elif delta == max_delta:
                 selectedEdges.append(curr_edge)
     if (config.iDebug == 2):
         print("->N:",selectedNodes)   
@@ -311,7 +338,7 @@ if __name__ == '__main__':
     iterCount = 0
     iK1 = 0
     iK2 = 0
-    iDebug = 2
+    iDebug = 0
     try:
         opts, args = getopt.getopt(sys.argv[1:],"hi:t:v:e:d")
     except getopt.GetoptError as err:
@@ -335,20 +362,15 @@ if __name__ == '__main__':
             
 
      
-    mainConfig = config(ifile, iterCount, iK1, iK2, iDebug)
-    print_config(mainConfig)
-    
-    # Parse payoff function parameter (optional, default: 'pairwise')
+    # Parse payoff function parameter BEFORE config/pool creation
     # Check if payoff function is specified as last argument
     if len(sys.argv) >= 4:
         payoff_function_name = sys.argv[-1]
         try:
             payoff_function = get_payoff_function(payoff_function_name)
             print(f"Using payoff function: {payoff_function_name}")
-            # Synchronize fitness count with payoff functions module
             payoff_functions.fitness_count = 0
         except ValueError:
-            # If the last argument is not a valid payoff function, use default
             payoff_function_name = 'pairwise'
             payoff_function = get_payoff_function(payoff_function_name)
             print(f"Using default payoff function: {payoff_function_name}")
@@ -359,6 +381,8 @@ if __name__ == '__main__':
         print(f"Using default payoff function: {payoff_function_name}")
         payoff_functions.fitness_count = 0
     
+    mainConfig = config(ifile, iterCount, iK1, iK2, iDebug)
+    print_config(mainConfig)
     
     minVal = math.inf
     minR = mainConfig.NIL
@@ -370,9 +394,9 @@ if __name__ == '__main__':
     plotNo = 111
     minValE = [math.inf,[],[],[]]
 
-    # EXECUTION
+    # EXECUTION - pass payoff_function NAME to workers via initializer
     que = Queue()
-    pool = Pool(processes=mainConfig.pool_size, initializer=pool_init, initargs=(que,))
+    pool = Pool(processes=mainConfig.pool_size, initializer=pool_init, initargs=(que, payoff_function_name))
     run(pool)
     pool.close()
     #pool.join()
@@ -393,7 +417,9 @@ if __name__ == '__main__':
     minR.remove_edges_from(minEE)
 
 
-    output = "outputs/reruns/greedy/" + str(sys.argv[2]) + "_" + sys.argv[1]
+    output_dir = Path("outputs/reruns/greedy")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output = output_dir / f"{sys.argv[2]}_{Path(sys.argv[1]).name}"
     f = open(output, "w+")
 
     print('Modified graph properties:\n-----------------')

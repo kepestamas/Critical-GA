@@ -65,8 +65,8 @@ def main():
     # Final parameter combinations - tuning for node weights GA
     parameters = {
         'budget': [0.05, 1.00],
-        'node_fraction': [0.05],  # Fixed - no moves to make
-        'edge_fraction': [0.03],  # Fixed - no moves to make
+        'node_fraction': [0],  # Fixed - no moves to make
+        'edge_fraction': [0],  # Fixed - no moves to make
         'population_size': [50],
         'tournament_size': [3],
         'p_crossover': [0.8],
@@ -90,8 +90,9 @@ def main():
     
     # Input files from "Testing"
     input_files = [
-        "Testing/cor_ip_as_network-w.txt",
-        "Testing/cor_ip_as_network_caida-w.txt",
+        "Testing/network-cor-forma_eu_27t.txt",
+        # "Testing/cor_ip_as_network-w.txt",
+        # "Testing/cor_ip_as_network_caida-w.txt",
         # "Testing/cor_adjnoun-w.txt",
         # "Testing/cor_celegans_metabolic-w.txt",
         # "Testing/cor_celegansneural-w.txt",

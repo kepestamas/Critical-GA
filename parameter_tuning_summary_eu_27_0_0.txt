@@ -1,0 +1,11 @@
+Running Summary
+===============
+
+Total runs: 60
+Successful runs: 60
+Failed runs: 0
+
+Average fitness by parameter combination:
+--------------------------------------------------
+Budget=0.05, Pop=50, Tour=3, Cross=0.8, Mut=0.01: Avg=40964002.67 (n=30)
+Budget=1.0, Pop=50, Tour=3, Cross=0.8, Mut=0.01: Avg=40964002.67 (n=30)
