@@ -441,9 +441,10 @@ def crossover_tournament(evaluated_population, graph_data=None, payoff_func_name
     
     # Generate all children first
     children = []
-    for _ in range(tournament_round_count):
-        first_child, second_child = tournament_round(evaluated_population)
-        children.extend([copy.deepcopy(first_child), copy.deepcopy(second_child)])
+    if (p_cross != 0 and random.random() <= 0.5):
+        for _ in range(tournament_round_count):
+            first_child, second_child = tournament_round(evaluated_population)
+            children.extend([copy.deepcopy(first_child), copy.deepcopy(second_child)])
     
     # Parallel evaluation
     if USE_PARALLEL and graph_data is not None:
