@@ -21,15 +21,15 @@ NODE_FRACTION = 0.05
 EDGE_FRACTION = 0.03
 WEIGHT_BUDGET = 0.05
 PAYOFF_FUNCTIONS = list_payoff_functions()  # run all available payoff functions
-TIMEOUT_SECONDS = 600  # 10 minutes per run; set to None to disable timeout
+TIMEOUT_SECONDS = None  # No timeout
 
 # Large networks to run last (they take much longer)
 LARGE_NETWORKS = {"cor_ip_as_network-w.txt", "cor_ip_as_network_caida-w.txt", "network-cor-forma_eu_27t.txt"}
 
-# Very slow networks - only run when timeout is disabled (None)
-SKIP_UNLESS_NO_TIMEOUT = {"cor_ip_as_network-w.txt", "cor_ip_as_network_caida-w.txt", 
-                          "cor_celegans_metabolic-w.txt", "cor_celegansneural-w.txt",
-                          "network-cor-forma_eu_27t.txt"}
+# Very slow networks - skip these entirely
+SKIP_NETWORKS = {"cor_ip_as_network-w.txt", "cor_ip_as_network_caida-w.txt", 
+                 "cor_celegans_metabolic-w.txt", "cor_celegansneural-w.txt",
+                 "network-cor-forma_eu_27t.txt", "cor_jazz-w.txt"}
 
 
 def discover_input_files():
@@ -67,7 +67,7 @@ def extract_minval(output_path: Path):
     return None
 
 
-def run_greedy(input_path: Path, run_id: str, payoff_function: str):
+def run_greedy(input_path: Path, run_id: str, payoff_function: str, iter_count: int):
     cmd = [
         "python",
         "connectivity_greedy.py",
@@ -77,34 +77,46 @@ def run_greedy(input_path: Path, run_id: str, payoff_function: str):
     ]
     env = os.environ.copy()
     env["GREEDY_WEIGHT_BUDGET"] = str(WEIGHT_BUDGET)
+    env["GREEDY_SHOW_PROGRESS"] = "1"
+
+    # Print run info before starting
+    print(f"\n  [{run_id}] {input_path.name} ({iter_count} iters): ", end="", flush=True)
 
     start = time.time()
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
-        try:
-            timeout = TIMEOUT_SECONDS if TIMEOUT_SECONDS is not None else None
-            stdout, stderr = proc.communicate(timeout=timeout)
-            returncode = proc.returncode
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
-            raise
+        
+        # Stream stdout to show progress
+        while True:
+            char = proc.stdout.read(1)
+            if char == '' and proc.poll() is not None:
+                break
+            if char:
+                print(char, end="", flush=True)
+        
+        proc.wait()
+        returncode = proc.returncode
+        stdout = ""  # Already printed
+        stderr = proc.stderr.read()
         result = subprocess.CompletedProcess(cmd, returncode, stdout, stderr)
     except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
         raise
     runtime = time.time() - start
 
     output_file = Path("outputs/reruns/greedy") / f"{run_id}_{input_path.name}"
     minval = extract_minval(output_file)
+    
+    # Print result on same line
+    print(f" -> {minval} ({runtime:.1f}s)", flush=True)
 
     return runtime, minval, result
 
 
 def should_skip_network(input_path: Path) -> bool:
-    """Return True if this network should be skipped (unless timeout is disabled)."""
-    if TIMEOUT_SECONDS is None:
-        return False  # No timeout = run everything
-    return input_path.name in SKIP_UNLESS_NO_TIMEOUT
+    """Return True if this network should be skipped."""
+    return input_path.name in SKIP_NETWORKS
 
 
 def main():
@@ -113,7 +125,11 @@ def main():
     if not inputs:
         print("No input files found in inputs/.")
         return
-
+    
+    # Count networks that will actually run (excluding skipped)
+    active_inputs = [f for f in inputs if f.name not in SKIP_NETWORKS]
+    total_runs = len(PAYOFF_FUNCTIONS) * len(active_inputs)
+    
     csv_path = Path("outputs/greedy_final/greedy_results.csv")
     headers = [
         "input_file",
@@ -129,25 +145,60 @@ def main():
         "status",
         "output_file",
     ]
+    
+    # Load already completed runs to skip them
+    completed_runs = set()
+    if csv_path.exists():
+        with csv_path.open("r", newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                completed_runs.add(row["run_id"])
+        print(f"Found {len(completed_runs)} already completed runs, will continue from there.")
+    
+    remaining_runs = total_runs - len(completed_runs)
+    print(f"=" * 70)
+    print(f"GREEDY RUNNER - {remaining_runs} runs remaining (of {total_runs} total)")
+    print(f"  Payoff functions: {', '.join(PAYOFF_FUNCTIONS)}")
+    print(f"  Networks: {len(active_inputs)} (skipping {len(inputs) - len(active_inputs)})")
+    print(f"  Parameters: node_frac={NODE_FRACTION}, edge_frac={EDGE_FRACTION}, weight_budget={WEIGHT_BUDGET}")
+    print(f"  Iteration count: (k_nodes + k_edges)^2 per network")
+    print(f"=" * 70)
 
-    with csv_path.open("w", newline="") as csvfile:
+    # Open in append mode if file exists, otherwise write mode with header
+    mode = "a" if csv_path.exists() else "w"
+    with csv_path.open(mode, newline="") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(headers)
+        if mode == "w":
+            writer.writerow(headers)
 
+        run_counter = 0
+        skipped_counter = 0
         for payoff in PAYOFF_FUNCTIONS:
+            payoff_run_count = 0
+            payoff_skipped = 0
+            print(f"\n{'='*60}")
+            print(f"[{payoff.upper()}] Starting payoff function ({len(active_inputs)} networks)")
+            print(f"{'='*60}")
             for idx, input_path in enumerate(inputs, start=1):
                 run_id = f"greedy_B005_{payoff}_{idx:03d}"
                 
-                # Skip very slow networks unless timeout is disabled
+                # Skip very slow networks
                 if should_skip_network(input_path):
-                    print(f"SKIPPING {input_path.name} with payoff={payoff} (too slow, set TIMEOUT_SECONDS=None to run)")
                     continue
                 
-                print(f"Running greedy on {input_path.name} with payoff={payoff} (run_id={run_id})")
+                # Skip already completed runs
+                if run_id in completed_runs:
+                    skipped_counter += 1
+                    payoff_skipped += 1
+                    continue
+                
+                run_counter += 1
+                payoff_run_count += 1
                 nodes, edges, k_nodes, k_edges = compute_k_values(input_path)
+                iter_count = (k_nodes + k_edges) ** 2
 
                 try:
-                    runtime, minval, result = run_greedy(input_path, run_id, payoff)
+                    runtime, minval, result = run_greedy(input_path, run_id, payoff, iter_count)
                     status = "OK" if result.returncode == 0 and minval is not None else "ERROR"
                 except subprocess.TimeoutExpired:
                     runtime = TIMEOUT_SECONDS if TIMEOUT_SECONDS else 0
@@ -169,9 +220,15 @@ def main():
                     str(Path("outputs/reruns/greedy") / f"{run_id}_{input_path.name}"),
                 ])
                 csvfile.flush()
-                print(f"  -> status={status}, min_val={minval}, runtime={runtime:.2f}s")
+            
+            if payoff_skipped > 0:
+                print(f"  [{payoff.upper()}] Completed {payoff_run_count} networks (skipped {payoff_skipped} already done)")
+            else:
+                print(f"  [{payoff.upper()}] Completed {payoff_run_count} networks")
 
-    print(f"Finished. Results saved to {csv_path}")
+        print(f"\n{'='*60}")
+        print(f"Finished! New runs: {run_counter}, Skipped: {skipped_counter}. Results saved to {csv_path}")
+        print(f"{'='*60}")
 
 
 if __name__ == "__main__":
