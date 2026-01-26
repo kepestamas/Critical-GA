@@ -110,11 +110,13 @@ class config:
         
         self.K = self.K1 + self.K2  # Total budget (count for both nodes and edges)
         self.INF = self.G.number_of_nodes() ** 2
-        # if iterCount == 0 :
-        #     self.IterationCount = self.G.number_of_nodes() ** 2
-        # else:
-        #     self.IterationCount = iterCount
-        self.IterationCount = 5  # Reduced for faster execution (greedy is mostly deterministic)
+        
+        # Iteration count: use env var if set, otherwise default to (K1 + K2)^2
+        iter_env = os.getenv("GREEDY_ITERATION_COUNT", "")
+        if iter_env:
+            self.IterationCount = int(iter_env)
+        else:
+            self.IterationCount = (self.K1 + self.K2) ** 2  # Original formula
 
 
         self.pool_size = multiprocessing.cpu_count() - 1
@@ -312,8 +314,14 @@ def CNEP1a_2_G1(config):
     return [H, S, E]
     
 def makeCNEPRun(config,method,i):
-    if (config.iDebug > 0):
-        #if (i%100 == 0):
+    # Progress output: show dots with numbers every 5 iterations
+    show_progress = os.getenv("GREEDY_SHOW_PROGRESS", "0") == "1"
+    if show_progress:
+        if (i + 1) % 5 == 0:
+            print(f".{i+1}", end="", flush=True)
+        else:
+            print(".", end="", flush=True)
+    elif (config.iDebug > 0):
         print('Run: ',i,'/',config.IterationCount)
     [R, SS, EE] = method(config)
     if (config.iDebug == 2):
