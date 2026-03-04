@@ -314,13 +314,11 @@ def CNEP1a_2_G1(config):
     return [H, S, E]
     
 def makeCNEPRun(config,method,i):
-    # Progress output: show dots with numbers every 5 iterations
+    # Progress output: show iteration counter
     show_progress = os.getenv("GREEDY_SHOW_PROGRESS", "0") == "1"
     if show_progress:
-        if (i + 1) % 5 == 0:
-            print(f".{i+1}", end="", flush=True)
-        else:
-            print(".", end="", flush=True)
+        # Show [current/total] format
+        print(f"[{i+1}/{config.IterationCount}]", end=" ", flush=True)
     elif (config.iDebug > 0):
         print('Run: ',i,'/',config.IterationCount)
     [R, SS, EE] = method(config)
