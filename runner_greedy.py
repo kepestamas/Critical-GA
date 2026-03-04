@@ -37,10 +37,11 @@ def discover_input_files():
     allowed = {".txt", ".edges", ".mtx"}
     files = [p for p in sorted(root.iterdir()) if p.is_file() and p.suffix.lower() in allowed]
     # Sort so large networks come last
-    normal = [f for f in files if f.name not in LARGE_NETWORKS]
-    large = [f for f in files if f.name in LARGE_NETWORKS]
-    return normal + large
-
+    filelist = [f for f in files if f.name in {"cor_dolphins-w.txt"}]
+    #normal = [f for f in files if f.name not in LARGE_NETWORKS]
+    #large = [f for f in files if f.name in LARGE_NETWORKS]
+    #return normal + large
+    return filelist
 
 def compute_k_values(path: Path):
     G, _ = read_graph(str(path), detect_weights=True)
