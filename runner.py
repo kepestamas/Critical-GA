@@ -228,10 +228,11 @@ def main():
     
     # Input files from "Tuning"
     input_files = [
-        "Tuning/bog_150_p0.1_2.txt",
-        "Tuning/cor_dolphins-w.txt", 
-        "Tuning/hos_35_r1_1.txt",
-        "Tuning/mac_grafo20dens30.txt"
+        # "Tuning/bog_150_p0.1_2.txt",
+        # "Tuning/cor_dolphins-w.txt", 
+        # "Tuning/hos_35_r1_1.txt",
+        # "Tuning/mac_grafo20dens30.txt"
+        "Testing/network-cor-forma_eu_27t.txt",
     ]
     
     # Input files from "Testing"
