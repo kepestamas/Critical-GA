@@ -79,7 +79,8 @@ fitness_count = 0
 mutation_count = max(int((k_nodes + k_edges) / 4), 1)  # Adaptive based on node/edge count
 
 # Parallelization settings
-N_PROCESSES = cpu_count() - 1 if cpu_count() > 1 else 1  # Leave one core free
+#N_PROCESSES = cpu_count() - 1 if cpu_count() > 1 else 1  # Leave one core free
+N_PROCESSES = cpu_count()//2 if cpu_count() > 1 else 1  # Leave half of the cores free to avoid overloading
 USE_PARALLEL = True
 PARALLEL_POOL = None  # Global pool to avoid recreation overhead
 
@@ -93,6 +94,7 @@ input_basename = os.path.basename(sys.argv[1])
 # Remove file extension for cleaner output filenames
 input_basename_clean = os.path.splitext(input_basename)[0]
 output = "outputs/descending_mutation/ga/timing" + str(sys.argv[2]) + "_" + input_basename_clean + "_ke_" + str(k_edges) + "_kn_" + str(k_nodes) + "_wb_" + str(weight_budget) + "_" + payoff_function_name
+os.makedirs(os.path.dirname(output), exist_ok=True)
 
 node_dictionary = {}
 for i,node in enumerate(list(G.nodes)):
@@ -270,7 +272,7 @@ def mutate(individual):
 def actualize_mutation_count(current_gen, max_gen):
     global mutation_count
     half_gen = int(max_gen / 2)
-    alfa = (half_gen - current_gen) / half_gen
+    alfa = (hf_algen - current_gen) / half_gen
     mutation_count = max(int(((k_nodes + k_edges) / 4) * alfa), 1)
     print(mutation_count)
 
@@ -425,7 +427,7 @@ def tournament_round(evaluated_population):
     # current_contenders = current_contenders[0:2]
     current_contenders = find_min_from_contenders(current_contenders)
 
-
+    ###### sulyproblemak ellenorzese ######
     united_node_list = current_contenders[0][0][0] + current_contenders[1][0][0]
     first_child_nodes, second_child_nodes = split_node_lists(united_node_list)
 
@@ -441,6 +443,8 @@ def crossover_tournament(evaluated_population, graph_data=None, payoff_func_name
     
     # Generate all children first
     children = []
+
+    ####### p_cross a veletlenszam feltetele!!!!! #######
     if (p_cross != 0 and random.random() <= 0.5):
         #for _ in range(tournament_round_count):
         first_child, second_child = tournament_round(evaluated_population)
@@ -503,7 +507,7 @@ def ga():
         #     if len(set(pop[0][0])) != 25:
         #         print("ERROR")
         actualize_mutation_count(current_gen, gen_count) #! for descending mutation
-        if random.random() < mutation_chance:
+        if random.random() < mutation_chance and evaluated_child_population:
             original_individual = random.choice(evaluated_child_population)
             # mutating_individual = mutate(original_individual)
             mutating_individual = descending_mutation(original_individual) #! for descending mutation

@@ -19,13 +19,8 @@ from pathlib import Path
 
 
 def clean_filename(filename):
-    """Clean filename for use in generation file naming."""
-    # Remove file extension and directory path
-    name = Path(filename).name  # Get just the filename, not the full path
-    name = Path(name).stem      # Remove extension
-    # Replace special characters with underscores, but preserve dashes
-    name = re.sub(r'[^\w-]', '_', name)
-    return name
+    """Clean filename to match GA output naming: basename without extension."""
+    return os.path.splitext(os.path.basename(filename))[0]
 
 
 def construct_generation_filename(run_id, input_file, budget, payoff_function):
@@ -80,8 +75,8 @@ def main():
     # Paths
     csv_file = Path("outputs/ga_node_weights/running/running_results.csv")
     generation_dir = Path("outputs/descending_mutation/ga")
-    output_file = Path("fitness_progression_analysis.csv")
-    log_file = Path("fitness_progression_analysis.log")
+    output_file = Path("fitness_progression_analysis_tuning_2026_04_13.csv")
+    log_file = Path("fitness_progression_analysis_tuning_2026_04_13.log")
 
     # Set up logging
     logging.basicConfig(
@@ -145,8 +140,12 @@ def main():
                               f"Pattern: {gen_pattern}, Budget: {budget}, Payoff: {payoff_function}, "
                               f"CSV_Row: {row}")
                 continue
-            elif len(matching_files) > 1:
-                info_msg = f"Multiple generation files found for run {run_id}, using first: {matching_files[0].name}"
+
+            # Sort by modification time descending so the newest file is first
+            matching_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+
+            if len(matching_files) > 1:
+                info_msg = f"Multiple generation files found for run {run_id}, using newest: {matching_files[0].name}"
                 print(f"Warning: {info_msg}")
                 logging.info(f"MULTIPLE_GENERATION_FILES - Run: {run_id}, Files: {[f.name for f in matching_files]}, "
                            f"Using: {matching_files[0].name}, Input: {input_file}, "
@@ -160,6 +159,17 @@ def main():
             if fitness_values is None:
                 print(f"Skipping run {run_id}: Could not read generation file")
                 continue
+
+            # Derive best_fitness from the generation file itself (max fitness in the file)
+            # This avoids mismatches when the CSV comes from a different run than the file on disk
+            # (e.g. when multiple parameter combos overwrite the same generation file)
+            file_best_fitness = max(fitness_values) if fitness_values else None
+
+            if file_best_fitness is not None and abs(file_best_fitness - best_fitness) > 1e-6:
+                logging.info(f"CSV_FILE_MISMATCH - Run: {run_id}, CSV best: {best_fitness}, "
+                           f"File best: {file_best_fitness}, File: {gen_file_path.name}")
+                # Use the file's actual best fitness for progression analysis
+                best_fitness = file_best_fitness
 
             # Find first generation with best fitness
             first_gen = find_first_best_generation(fitness_values, best_fitness)
