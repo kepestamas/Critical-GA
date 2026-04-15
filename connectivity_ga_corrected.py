@@ -498,7 +498,9 @@ def ga():
         #     if len(set(pop[0][0])) != 25:
         #         print("ERROR")
         evaluated_child_population = []
-        for _ in range(len(evaluated_population) // tournament_size):
+
+	### minden szuloparra: parok szama = populacio/2
+        for _ in range(pop_size // 2):
             if random.random() < p_cross:
                 new_children = crossover_tournament(
                     evaluated_population, graph_data, payoff_function_name
@@ -512,7 +514,7 @@ def ga():
         if mutation_chance > 0 and evaluated_child_population:
             if mutation_type == 1:
                 actualize_mutation_count(current_gen, gen_count) #! for descending mutation
-            for i in range(len(evaluated_child_population)):
+            for i in range(pop_size):
                 if random.random() < mutation_chance:
                     idx = random.randrange(len(evaluated_child_population))
                     original_individual = evaluated_child_population[idx]
