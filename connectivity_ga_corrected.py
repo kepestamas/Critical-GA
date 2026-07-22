@@ -313,6 +313,7 @@ def split_node_lists(united_node_list):
     for node in united_node_list:
         if node in seen:
             common_nodes.append(node)
+            remaining_nodes.remove(node)  # Remove from remaining if already added
         else:
             seen.add(node)
             remaining_nodes.append(node)
@@ -424,7 +425,8 @@ def tournament_round(evaluated_population):
         # Fallback: one child from lightest k_nodes, other child is a parent
         all_nodes_sorted = sorted(list(G.nodes), key=lambda n: get_node_weight(node_weights, n))
         lightest_nodes = all_nodes_sorted[:k_nodes]
-        edge_list = list(G.edges)
+        #edge_list = list(G.edges)  # Use all edges for sampling
+        edge_list = united_edge_list  # Use united edges from parents for sampling
         lightest_edges = random.sample(edge_list, min(k_edges, len(edge_list)))
 
         first_child = (lightest_nodes, lightest_edges)

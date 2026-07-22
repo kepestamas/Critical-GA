@@ -36,10 +36,11 @@ tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
 
 # Start a new detached tmux session running the script
 tmux new-session -d -s "$SESSION_NAME" -c "$SCRIPT_DIR" \
-    "python runner.py -j ${WORKERS} 2>&1 | tee outputs/ga_node_weights/running/runner_\$(date +%Y%m%d_%H%M%S).log; echo ''; echo 'Run finished. Press Enter to close.'; read"
+    "python -u runner.py -j ${WORKERS} 2>&1 | tee outputs/ga_node_weights/running/runner_\$(date +%Y%m%d_%H%M%S).log; echo ''; echo 'Run finished. Press Enter to close.'; read"
 
 echo "Started tmux session '$SESSION_NAME'."
 echo ""
 echo "  Attach:   tmux attach -t $SESSION_NAME"
 echo "  Detach:   Ctrl+B, then D"
 echo "  Kill:     tmux kill-session -t $SESSION_NAME"
+echo "  Status:   ./tmux_time.sh status"

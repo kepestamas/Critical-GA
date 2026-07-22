@@ -179,7 +179,7 @@ print(f'{{k_edges}}_{{k_nodes}}')
 
 def main():
     """
-    Main function to run parameter tuning experiments.
+    Main function to run parameter tuning/final experiments.
     """
 
     # --- CLI argument: parallel workers ---
@@ -194,55 +194,58 @@ def main():
     parallel_workers = args.parallel
     print(f"Parallel workers: {parallel_workers} (CPUs available: {cpu_count()})")
 
-    # Parameter combinations to test - tuning for node weights GA
-    # parameters = {
-    #     'budget': [0.15, 0.20, 0.25, 1.00],
-    #     'node_fraction': [0.05],  # Fixed
-    #     'edge_fraction': [0.03],  # Fixed
-    #     'population_size': [50, 100],
-    #     'tournament_size': [3, 5],
-    #     'p_crossover': [0.8, 0.9],
-    #     'p_mutation': [0.01, 0.02],
-    #     'payoff_function': ['largest']  # Fixed to largest
-    # }
-
-    # Final parameter combinations - tuning for node weights GA
+    # Parameter combinations to run for node weights GA
     parameters = {
-        'budget': [0.05, 0.15, 0.25, 0.5, 1.0],
-        'node_fraction': [0.05],  # Fixed - no moves to make
-        'edge_fraction': [0.03],  # Fixed - no moves to make
-        'population_size': [50,100],
-        'tournament_size': [3,5],
-        'p_crossover': [0.8, 0.9],
-        'p_mutation': [0.01, 0.02],
+        'budget': [0.5],
+        'node_fraction': [0.05],  # Fixed
+        'edge_fraction': [0.03],  # Fixed
+        'population_size': [200],
+        'tournament_size': [5],
+        'p_crossover': [0.8],
+        'p_mutation': [0.01],
         'payoff_function': ['largest','pairwise','components'],
-        'mutation_type': [0, 1],  # 0 for standard mutation, 1 for descending mutation
+        'mutation_type': [0],  # 0 for standard mutation, 1 for descending mutation
         'max_switch_pct': [50]  # max crossover switches as percentage of k_nodes
     }
 
+    # Final parameter combinations - tuning for node weights GA
+    # parameters = {
+    #     'budget': [0.05, 0.15, 0.25, 0.5, 1.0],
+    #     'node_fraction': [0.05],  # Fixed - no moves to make
+    #     'edge_fraction': [0.03],  # Fixed - no moves to make
+    #     'population_size': [50,100],
+    #     'tournament_size': [3,5],
+    #     'p_crossover': [0.8, 0.9],
+    #     'p_mutation': [0.01, 0.02],
+    #     'payoff_function': ['largest','pairwise','components'],
+    #     'mutation_type': [0, 1],  # 0 for standard mutation, 1 for descending mutation
+    #     'max_switch_pct': [50]  # max crossover switches as percentage of k_nodes
+    # }
+
     max_fitness_only = False # just a max_fitness value run, no moves made
 
-    generations = 200  # Fixed number of generations per run
+    generations = 2000  # Fixed number of generations per run
+    run_per_conf = 30   # runs per parameter combination (for averaging)
 
-    ga_timeout = 200000  # seconds
+    ga_timeout = None #20000000  # seconds
     
     # Input files from "Tuning"
-    input_files = [
-        "Tuning/bog_150_p0.1_2.txt",
-        "Tuning/cor_dolphins-w.txt", 
-        "Tuning/hos_35_r1_1.txt",
-        "Tuning/mac_grafo20dens30.txt"
-        # "Testing/network-cor-forma_eu_27t.txt",
-    ]
+    # input_files = [
+    #     "Tuning/bog_150_p0.1_2.txt",
+    #     "Tuning/cor_dolphins-w.txt", 
+    #     "Tuning/hos_35_r1_1.txt",
+    #     "Tuning/mac_grafo20dens30.txt"
+    #     # "Testing/network-cor-forma_eu_27t.txt",
+    # ]
     
     # Input files from "Testing"
-    #input_files = [
-        # "Testing/network-cor-forma_eu_27t.txt",
-        # "Testing/cor_ip_as_network-w.txt",
-        # "Testing/cor_ip_as_network_caida-w.txt",
-        # "Testing/cor_adjnoun-w.txt",
-        # "Testing/cor_celegans_metabolic-w.txt",
-        # "Testing/cor_celegansneural-w.txt",
+    input_files = [
+        "Testing/network-cor-forma_eu_27t.txt",
+        #"Testing/cor_ip_as_network-w.txt",
+        #"Testing/cor_ip_as_network_caida-w.txt",
+        #"Testing/cor_adjnoun-w.txt",
+        #"Testing/cor_celegans_metabolic-w.txt",
+        #"Testing/cor_celegansneural-w.txt",
         # "Testing/cor_dolphins-w.txt",
         # "Testing/cor_football-w.txt",
         # "Testing/cor_jazz-w.txt",
@@ -291,7 +294,7 @@ def main():
         # "Testing/mac_grafo28dens30.txt",
         # "Testing/mac_grafo29dens30.txt",
         # "Testing/mac_grafo30dens30.txt"
-    #]
+    ]
     
     # Create output directory
     output_dir = "outputs/ga_node_weights/running"
@@ -332,9 +335,9 @@ def main():
                     input_basename = os.path.basename(input_file)
                     input_basename_clean = os.path.splitext(input_basename)[0]
 
-                    for run_num in range(1, 11):
+                    for run_num in range(1, run_per_conf + 1):
                         run_counter += 1
-                        run_id = f"tune_{run_num}"
+                        run_id = f"run_{run_num}"
 
                         cmd = [
                             "python", "connectivity_ga_corrected.py",
@@ -372,12 +375,12 @@ def main():
                             'max_switch_pct': parameters['max_switch_pct'][0],
                             'run_id': run_id,
                             'run_counter': run_counter,
-                            'total_runs': total_combinations * len(input_files) * 10,
+                            'total_runs': total_combinations * len(input_files) * run_per_conf,
                         })
 
             total_runs = len(tasks)
             print(f"Starting running with {total_combinations} combinations")
-            print(f"Total runs: {total_runs} ({total_combinations} combinations × {len(input_files)} files × 10 runs)")
+            print(f"Total runs: {total_runs} ({total_combinations} combinations × {len(input_files)} files × {run_per_conf} runs)")
             print(f"Estimated time (sequential): {total_runs * 30 / 60:.1f} min | parallel ({parallel_workers}w): ~{total_runs * 30 / 60 / parallel_workers:.1f} min")
 
             # Execute tasks in parallel

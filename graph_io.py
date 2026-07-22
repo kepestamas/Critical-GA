@@ -109,20 +109,26 @@ def read_graph(input_path: str, detect_weights: bool = True) -> Tuple[nx.Graph, 
         return G, node_weights
     
     # Unweighted graph formats
-    if filename in ["BarabasiAlbert_n500m1.txt", "BarabasiAlbert_n1000m1.txt", 
-                    "ErdosRenyi_n250.txt", "ErdosRenyi_n500.txt", 
-                    "ForestFire_n250.txt", "ForestFire_n500.txt", 
-                    "WattsStrogatz_n250.txt", "WattsStrogatz_n500.txt"]:
-        # Skip first line (node count), then parse adjacency list
-        lines = lines[1:]
-        split_lines = [line.replace("\n", "").split(":") for line in lines]
-        for line in split_lines:
-            if len(line) >= 2:
-                a = line[0]
-                neighbors = line[1].split(" ")[1:-1]
-                for neighbor in neighbors:
-                    if neighbor:  # Skip empty strings
-                        G.add_edge(a, neighbor)
+    # General colon-separated adjacency list format, used by files such as
+    # network-cor-forma_eu_27t.txt and other exported adjacency-list graphs.
+    colon_adj_lines = []
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or ':' not in line:
+            continue
+        node_id, _, neighbors_text = line.partition(':')
+        node_id = node_id.strip()
+        if node_id:
+            colon_adj_lines.append((node_id, neighbors_text.strip()))
+
+    if colon_adj_lines and len(colon_adj_lines) >= 2:
+        for node_id, neighbors_text in colon_adj_lines:
+            if not neighbors_text:
+                G.add_node(node_id)
+                continue
+            for neighbor in neighbors_text.split():
+                if neighbor:
+                    G.add_edge(node_id, neighbor)
     
     elif filename in ["out.as20000102", "ia-infect-dublin.mtx", "ia-infect-hyper.mtx",
                      "power-494-bus.mtx", "power-662-bus.mtx", 

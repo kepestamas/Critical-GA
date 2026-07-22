@@ -11,61 +11,16 @@ Output format: best_fitness,generation_number,fitness_value_1,fitness_value_2,..
 """
 
 import csv
-import logging
-import math
 import os
 import re
 import glob
-from datetime import date
+import logging
 from pathlib import Path
 
 
 def clean_filename(filename):
     """Clean filename to match GA output naming: basename without extension."""
     return os.path.splitext(os.path.basename(filename))[0]
-
-
-def parse_runner_metadata(runner_file=None):
-    """Extract run count, population size, and generation size from runner.py."""
-    default_values = {
-        'run_count': 30,
-        'population_size': 200,
-        'generation_size': 2000,
-    }
-
-    if runner_file is None:
-        runner_file = Path(__file__).resolve().parent / 'runner.py'
-
-    runner_path = Path(runner_file)
-    if not runner_path.exists():
-        return default_values
-
-    try:
-        contents = runner_path.read_text(encoding='utf-8')
-    except OSError:
-        return default_values
-
-    run_count = default_values['run_count']
-    population_size = default_values['population_size']
-    generation_size = default_values['generation_size']
-
-    run_match = re.search(r"run_per_conf\s*=\s*(\d+)", contents)
-    if run_match:
-        run_count = int(run_match.group(1))
-
-    population_match = re.search(r"'population_size'\s*:\s*\[(\d+)\]", contents)
-    if population_match:
-        population_size = int(population_match.group(1))
-
-    generation_match = re.search(r"generations\s*=\s*(\d+)", contents)
-    if generation_match:
-        generation_size = int(generation_match.group(1))
-
-    return {
-        'run_count': run_count,
-        'population_size': population_size,
-        'generation_size': generation_size,
-    }
 
 
 def construct_generation_filename(run_id, prefix,input_file, budget, payoff_function):
@@ -106,32 +61,22 @@ def extract_fitness_values(generation_file_path):
 
 def find_first_best_generation(fitness_values, best_fitness):
     """Find the first generation where fitness equals best_fitness."""
-    if fitness_values is None or best_fitness is None:
+    if fitness_values is None:
         return None
 
     for i, fitness in enumerate(fitness_values):
-        if math.isclose(float(fitness), float(best_fitness), rel_tol=1e-9, abs_tol=1e-6):
+        if abs(fitness - best_fitness) < 1e-6:  # Use small epsilon for float comparison
             return i
 
     return None  # Best fitness never achieved
 
 
 def main():
-    metadata = parse_runner_metadata()
-    fitness_column_count = metadata['generation_size']
-
     # Paths
     csv_file = Path("outputs/ga_node_weights/running/running_results.csv")
     generation_dir = Path("outputs/descending_mutation/ga")
-    date_suffix = date.today().strftime("%Y_%m_%d")
-    output_stem = (
-        f"fitness_progression_analysis_{date_suffix}_"
-        f"runs_{metadata['run_count']}_"
-        f"pop_{metadata['population_size']}_"
-        f"gens_{metadata['generation_size']}"
-    )
-    output_file = Path(f"{output_stem}.csv")
-    log_file = Path(f"{output_stem}.log")
+    output_file = Path("fitness_progression_analysis_run_2026_06_07.csv")
+    log_file = Path("fitness_progression_analysis_run_2026_06_07.log")
 
     # Set up logging
     logging.basicConfig(
@@ -245,19 +190,17 @@ def main():
                 
                 first_gen = -1  # Indicate not found
 
-            # Check if generation count is less than the expected column count
+            # Check if generation count is less than 200
             gen_count = len(fitness_values)
-            if gen_count < fitness_column_count:
+            if gen_count < 200:
                 logging.info(f"INCOMPLETE_GENERATIONS - Run: {run_id}, Input: {input_file}, "
-                           f"Generations: {gen_count}/{fitness_column_count}, Best Fitness: {best_fitness}, "
+                           f"Generations: {gen_count}/200, Best Fitness: {best_fitness}, "
                            f"Final Fitness: {fitness_values[-1] if fitness_values else 0.0}, "
                            f"Budget: {budget}, Payoff: {payoff_function}, "
                            f"Generation_File: {gen_file_path.name}, CSV_Row: {row}")
 
             # Prepare output row: all original columns + generation_number + fitness values
-            padded_fitness_values = list(fitness_values[:fitness_column_count])
-            padded_fitness_values.extend([''] * max(0, fitness_column_count - len(padded_fitness_values)))
-            output_row = [row[col] for col in fieldnames] + [first_gen] + padded_fitness_values
+            output_row = [row[col] for col in fieldnames] + [first_gen] + fitness_values
             results.append(output_row)
 
     # Write output CSV
@@ -266,7 +209,7 @@ def main():
             writer = csv.writer(f)
 
             # Write header: all original columns + generation_number + fitness values
-            header = list(fieldnames) + ['generation_number'] + [f'fitness_value_{i+1}' for i in range(fitness_column_count)]
+            header = list(fieldnames) + ['generation_number'] + [f'fitness_value_{i+1}' for i in range(200)]
             writer.writerow(header)
 
             # Write data
